@@ -52,6 +52,8 @@ export const OPCODES = Object.freeze({
   TRAP: 50
 })
 
+export const OPCODE = OPCODES
+
 export const OPCODE_NAMES = Object.freeze(
   Object.fromEntries(
     Object.entries(OPCODES).map(([name, code]) => [code, name])
@@ -60,14 +62,19 @@ export const OPCODE_NAMES = Object.freeze(
 
 export const OPCODE_INFO = Object.freeze({
   NOP: { code: 0, operands: [], category: "system" },
+
   LOADK: { code: 1, operands: ["A", "K"], category: "constant" },
   MOVE: { code: 2, operands: ["A", "B"], category: "register" },
+
   GETGLOBAL: { code: 3, operands: ["A", "K"], category: "global" },
   SETGLOBAL: { code: 4, operands: ["K", "A"], category: "global" },
+
   GETLOCAL: { code: 5, operands: ["A", "B"], category: "local" },
   SETLOCAL: { code: 6, operands: ["A", "B"], category: "local" },
+
   GETUPVAL: { code: 7, operands: ["A", "B"], category: "upvalue" },
   SETUPVAL: { code: 8, operands: ["A", "B"], category: "upvalue" },
+
   NEWTABLE: { code: 9, operands: ["A", "SIZE"], category: "table" },
   GETTABLE: { code: 10, operands: ["A", "B", "C"], category: "table" },
   SETTABLE: { code: 11, operands: ["A", "B", "C"], category: "table" },
@@ -108,6 +115,7 @@ export const OPCODE_INFO = Object.freeze({
   FORLOOP: { code: 38, operands: ["A", "B", "TARGET"], category: "loop" },
 
   POP: { code: 39, operands: ["A"], category: "stack" },
+
   TEST: { code: 40, operands: ["A", "TARGET"], category: "control" },
   TESTSET: { code: 41, operands: ["A", "B", "TARGET"], category: "control" },
 
@@ -118,7 +126,9 @@ export const OPCODE_INFO = Object.freeze({
   LOADNIL: { code: 45, operands: ["A"], category: "constant" },
 
   VARARG: { code: 46, operands: ["A", "COUNT"], category: "function" },
+
   SELF: { code: 47, operands: ["A", "B", "C"], category: "call" },
+
   CLOSE: { code: 48, operands: ["A"], category: "function" },
 
   HALT: { code: 49, operands: [], category: "system" },
@@ -130,12 +140,18 @@ export function opcodeName(code) {
 }
 
 export function opcodeCode(name) {
-  if (typeof name !== "string") return -1
+  if (typeof name !== "string") {
+    return -1
+  }
+
   return OPCODES[name.toUpperCase()] ?? -1
 }
 
 export function isValidOpcode(code) {
-  return Number.isInteger(code) && OPCODE_NAMES[code] !== undefined
+  return (
+    Number.isInteger(code) &&
+    OPCODE_NAMES[code] !== undefined
+  )
 }
 
 export function getOpcodeInfo(opcode) {
@@ -147,7 +163,13 @@ export function getOpcodeInfo(opcode) {
   return OPCODE_INFO[name] ?? null
 }
 
-export function encode(opcode, a = 0, b = 0, c = 0, extra = undefined) {
+export function encode(
+  opcode,
+  a = 0,
+  b = 0,
+  c = 0,
+  extra = undefined
+) {
   const code =
     typeof opcode === "string"
       ? opcodeCode(opcode)
@@ -172,7 +194,10 @@ export function encode(opcode, a = 0, b = 0, c = 0, extra = undefined) {
 }
 
 export function decode(instruction) {
-  if (!instruction || typeof instruction !== "object") {
+  if (
+    instruction === null ||
+    typeof instruction !== "object"
+  ) {
     throw new Error("Invalid VM instruction")
   }
 
@@ -201,6 +226,7 @@ export function instructionSize(instruction) {
 
 export default {
   OPCODES,
+  OPCODE,
   OPCODE_NAMES,
   OPCODE_INFO,
   opcodeName,
