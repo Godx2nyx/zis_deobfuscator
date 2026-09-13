@@ -1,5 +1,3 @@
-"use strict";
-
 const TokenType = Object.freeze({
     EOF: "EOF",
 
@@ -9,7 +7,7 @@ const TokenType = Object.freeze({
 
     True: "True",
     False: "False",
-    Nil: "Nil,
+    Nil: "Nil",
 
     Local: "Local",
     Function: "Function",
@@ -100,7 +98,14 @@ const Keywords = Object.freeze({
 });
 
 class Token {
-    constructor(type, value, line = 1, column = 1, start = 0, end = 0) {
+    constructor(
+        type,
+        value,
+        line = 1,
+        column = 1,
+        start = 0,
+        end = 0
+    ) {
         this.type = type;
         this.value = value;
         this.line = line;
@@ -149,13 +154,18 @@ function keywordType(value) {
 }
 
 function isKeyword(value) {
-    return Object.prototype.hasOwnProperty.call(Keywords, value);
+    return Object.prototype.hasOwnProperty.call(
+        Keywords,
+        value
+    );
 }
 
-module.exports = {
+export {
     Token,
     TokenType,
     Keywords,
     keywordType,
     isKeyword
 };
+
+export default Token;
