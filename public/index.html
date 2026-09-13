@@ -2,125 +2,396 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0"
+    >
 
-    <title>Zis Obfuscator</title>
+    <title>Zis Luau Obfuscator</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@500;600;700&display=swap"
+        rel="stylesheet"
+    >
 
     <link rel="stylesheet" href="/style.css">
 </head>
+
 <body>
 
-    <header class="navbar">
+<div class="app">
+
+    <header class="topbar">
+
         <div class="brand">
-            <span class="brand-mark">Z</span>
+            <div class="brand-icon">Z</div>
+
             <div>
-                <strong>Zis Obfuscator</strong>
-                <small>zis_obfuscator</small>
+                <div class="brand-name">
+                    Zis Luau Obfuscator
+                </div>
+
+                <div class="brand-sub">
+                    zis_obfuscator
+                </div>
             </div>
         </div>
 
-        <div class="version">
-            v0.1.0
+        <div class="status">
+            <span class="status-dot"></span>
+            <span>Online</span>
         </div>
+
     </header>
 
-    <main class="container">
+
+    <main class="main">
 
         <section class="hero">
-            <div class="badge">LUAU PROCESSING ENGINE</div>
+
+            <div class="badge">
+                ZIS OBFUSCATOR PREMIUM
+            </div>
 
             <h1>
-                Zis Obfuscator
+                Protect your
+                <span>Luau source.</span>
             </h1>
 
             <p>
-                Virtualization-ready Luau processing system.
+                Advanced Luau processing with virtualization,
+                transformations and VM-based protection.
             </p>
+
         </section>
+
 
         <section class="workspace">
 
             <div class="panel">
+
                 <div class="panel-header">
-                    <span>Input</span>
-                    <span class="file-name">input.lua</span>
+
+                    <div class="file-info">
+                        <div class="file-icon">&lt;/&gt;</div>
+
+                        <div>
+                            <div class="file-name">
+                                input.lua
+                            </div>
+
+                            <div class="file-type">
+                                Luau Source
+                            </div>
+                        </div>
+                    </div>
+
+                    <button
+                        class="small-button"
+                        id="sample"
+                        type="button"
+                    >
+                        Sample
+                    </button>
+
                 </div>
+
 
                 <textarea
                     id="input"
                     spellcheck="false"
-                    placeholder="Paste your Luau source here..."
+                    autocomplete="off"
+                    autocorrect="off"
+                    autocapitalize="off"
+                    placeholder="Paste your Luau code here..."
                 ></textarea>
-            </div>
 
-            <div class="actions">
-                <button id="process">Process</button>
-                <button id="clear" class="secondary">Clear</button>
-            </div>
 
-            <div class="panel">
-                <div class="panel-header">
-                    <span>Output</span>
-                    <span class="file-name">output.lua</span>
+                <div class="panel-footer">
+
+                    <span id="inputInfo">
+                        0 characters
+                    </span>
+
+                    <button
+                        class="small-button danger"
+                        id="clear"
+                        type="button"
+                    >
+                        Clear
+                    </button>
+
                 </div>
+
+            </div>
+
+
+            <div class="process-area">
+
+                <button
+                    class="process-button"
+                    id="process"
+                    type="button"
+                >
+                    <span class="process-icon">⚡</span>
+                    <span id="processText">Obfuscate</span>
+                </button>
+
+                <div
+                    class="process-status"
+                    id="status"
+                >
+                    Ready
+                </div>
+
+            </div>
+
+
+            <div class="panel output-panel">
+
+                <div class="panel-header">
+
+                    <div class="file-info">
+
+                        <div class="file-icon output-icon">
+                            Z
+                        </div>
+
+                        <div>
+                            <div class="file-name">
+                                output.lua
+                            </div>
+
+                            <div class="file-type">
+                                Protected Luau
+                            </div>
+                        </div>
+
+                    </div>
+
+
+                    <div class="output-actions">
+
+                        <button
+                            class="small-button"
+                            id="copy"
+                            type="button"
+                        >
+                            Copy
+                        </button>
+
+                        <button
+                            class="small-button download"
+                            id="download"
+                            type="button"
+                        >
+                            Download
+                        </button>
+
+                    </div>
+
+                </div>
+
 
                 <textarea
                     id="output"
-                    spellcheck="false"
                     readonly
-                    placeholder="Processed source will appear here..."
+                    spellcheck="false"
+                    placeholder="Your protected source will appear here..."
                 ></textarea>
+
+
+                <div class="panel-footer">
+
+                    <span id="outputInfo">
+                        0 characters
+                    </span>
+
+                    <span class="vm-badge">
+                        Zisuay VM
+                    </span>
+
+                </div>
+
             </div>
 
         </section>
+
 
         <section class="settings">
 
-            <div class="setting">
-                <span>
-                    <strong>Rename Variables</strong>
-                    <small>Rename local identifiers</small>
-                </span>
-
-                <label class="switch">
-                    <input type="checkbox" id="rename" checked>
-                    <span></span>
-                </label>
+            <div class="settings-title">
+                Protection Settings
             </div>
 
-            <div class="setting">
-                <span>
-                    <strong>Process Strings</strong>
-                    <small>Prepare strings for transformation</small>
-                </span>
 
-                <label class="switch">
-                    <input type="checkbox" id="strings" checked>
-                    <span></span>
+            <div class="settings-grid">
+
+                <label class="setting">
+
+                    <div class="setting-info">
+                        <strong>Rename Variables</strong>
+                        <span>Randomize identifiers</span>
+                    </div>
+
+                    <input
+                        type="checkbox"
+                        id="rename"
+                        checked
+                    >
+
+                    <span class="switch"></span>
+
                 </label>
-            </div>
 
-            <div class="setting">
-                <span>
-                    <strong>Minify</strong>
-                    <small>Reduce generated source size</small>
-                </span>
 
-                <label class="switch">
-                    <input type="checkbox" id="minify">
-                    <span></span>
+                <label class="setting">
+
+                    <div class="setting-info">
+                        <strong>String Encryption</strong>
+                        <span>Protect string constants</span>
+                    </div>
+
+                    <input
+                        type="checkbox"
+                        id="strings"
+                        checked
+                    >
+
+                    <span class="switch"></span>
+
                 </label>
+
+
+                <label class="setting">
+
+                    <div class="setting-info">
+                        <strong>Hide Constants</strong>
+                        <span>Transform constant values</span>
+                    </div>
+
+                    <input
+                        type="checkbox"
+                        id="constants"
+                        checked
+                    >
+
+                    <span class="switch"></span>
+
+                </label>
+
+
+                <label class="setting">
+
+                    <div class="setting-info">
+                        <strong>Control Flow</strong>
+                        <span>Obfuscate execution flow</span>
+                    </div>
+
+                    <input
+                        type="checkbox"
+                        id="controlFlow"
+                        checked
+                    >
+
+                    <span class="switch"></span>
+
+                </label>
+
+
+                <label class="setting">
+
+                    <div class="setting-info">
+                        <strong>Dead Code</strong>
+                        <span>Inject unreachable blocks</span>
+                    </div>
+
+                    <input
+                        type="checkbox"
+                        id="deadCode"
+                        checked
+                    >
+
+                    <span class="switch"></span>
+
+                </label>
+
+
+                <label class="setting">
+
+                    <div class="setting-info">
+                        <strong>Minify</strong>
+                        <span>Reduce source size</span>
+                    </div>
+
+                    <input
+                        type="checkbox"
+                        id="minify"
+                    >
+
+                    <span class="switch"></span>
+
+                </label>
+
             </div>
 
         </section>
 
-        <footer>
-            <span>zis_obfuscator</span>
-            <span>Chunk: Zisuay</span>
-        </footer>
+
+        <section class="features">
+
+            <div class="feature">
+                <div class="feature-number">01</div>
+                <div>
+                    <strong>Lexer</strong>
+                    <span>Luau source analysis</span>
+                </div>
+            </div>
+
+            <div class="feature">
+                <div class="feature-number">02</div>
+                <div>
+                    <strong>AST</strong>
+                    <span>Structure transformation</span>
+                </div>
+            </div>
+
+            <div class="feature">
+                <div class="feature-number">03</div>
+                <div>
+                    <strong>REGVM</strong>
+                    <span>Zisuay virtual machine</span>
+                </div>
+            </div>
+
+            <div class="feature">
+                <div class="feature-number">04</div>
+                <div>
+                    <strong>Protected</strong>
+                    <span>zis_obfuscator watermark</span>
+                </div>
+            </div>
+
+        </section>
 
     </main>
 
-    <script src="/app.js"></script>
+
+    <footer>
+        <span>Zis Luau Obfuscator Premium</span>
+        <span>•</span>
+        <span>zis_obfuscator</span>
+        <span>•</span>
+        <span>Zisuay</span>
+    </footer>
+
+</div>
+
+
+<script src="/app.js"></script>
+
 </body>
 </html>
