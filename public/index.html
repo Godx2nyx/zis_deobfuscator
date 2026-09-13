@@ -2,10 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta
-        name="viewport"
-        content="width=device-width, initial-scale=1.0, maximum-scale=1.0"
-    >
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
     <title>Zis Luau Obfuscator</title>
 
@@ -24,31 +21,27 @@
 
 <div class="app">
 
-    <header class="topbar">
+    <header class="navbar">
 
         <div class="brand">
-            <div class="brand-icon">Z</div>
 
-            <div>
-                <div class="brand-name">
-                    Zis Luau Obfuscator
-                </div>
+            <div class="brand-mark">Z</div>
 
-                <div class="brand-sub">
-                    zis_obfuscator
-                </div>
+            <div class="brand-text">
+                <strong>Zis Luau Obfuscator</strong>
+                <small>zis_obfuscator</small>
             </div>
+
         </div>
 
-        <div class="status">
-            <span class="status-dot"></span>
-            <span>Online</span>
+        <div class="version">
+            Premium v0.1
         </div>
 
     </header>
 
 
-    <main class="main">
+    <main class="container">
 
         <section class="hero">
 
@@ -62,8 +55,8 @@
             </h1>
 
             <p>
-                Advanced Luau processing with virtualization,
-                transformations and VM-based protection.
+                Transform and protect Luau source code with the
+                Zisuay virtual machine.
             </p>
 
         </section>
@@ -76,21 +69,20 @@
                 <div class="panel-header">
 
                     <div class="file-info">
-                        <div class="file-icon">&lt;/&gt;</div>
+
+                        <div class="file-icon">
+                            &lt;/&gt;
+                        </div>
 
                         <div>
-                            <div class="file-name">
-                                input.lua
-                            </div>
-
-                            <div class="file-type">
-                                Luau Source
-                            </div>
+                            <strong>input.lua</strong>
+                            <small>Luau Source</small>
                         </div>
+
                     </div>
 
                     <button
-                        class="small-button"
+                        class="secondary small"
                         id="sample"
                         type="button"
                     >
@@ -117,7 +109,7 @@
                     </span>
 
                     <button
-                        class="small-button danger"
+                        class="secondary small"
                         id="clear"
                         type="button"
                     >
@@ -129,15 +121,17 @@
             </div>
 
 
-            <div class="process-area">
+            <div class="process-panel">
 
                 <button
                     class="process-button"
                     id="process"
                     type="button"
                 >
-                    <span class="process-icon">⚡</span>
-                    <span id="processText">Obfuscate</span>
+                    <span>⚡</span>
+                    <span id="processText">
+                        Obfuscate
+                    </span>
                 </button>
 
                 <div
@@ -150,33 +144,28 @@
             </div>
 
 
-            <div class="panel output-panel">
+            <div class="panel">
 
                 <div class="panel-header">
 
                     <div class="file-info">
 
-                        <div class="file-icon output-icon">
+                        <div class="file-icon output">
                             Z
                         </div>
 
                         <div>
-                            <div class="file-name">
-                                output.lua
-                            </div>
-
-                            <div class="file-type">
-                                Protected Luau
-                            </div>
+                            <strong>output.lua</strong>
+                            <small>Protected Luau</small>
                         </div>
 
                     </div>
 
 
-                    <div class="output-actions">
+                    <div class="actions">
 
                         <button
-                            class="small-button"
+                            class="secondary small"
                             id="copy"
                             type="button"
                         >
@@ -184,7 +173,7 @@
                         </button>
 
                         <button
-                            class="small-button download"
+                            class="primary small"
                             id="download"
                             type="button"
                         >
@@ -221,20 +210,23 @@
         </section>
 
 
-        <section class="settings">
+        <section class="settings-section">
 
-            <div class="settings-title">
-                Protection Settings
+            <div class="section-heading">
+                <div>
+                    <h2>Protection Settings</h2>
+                    <p>Configure the protection pipeline.</p>
+                </div>
             </div>
 
 
-            <div class="settings-grid">
+            <div class="settings">
 
                 <label class="setting">
 
                     <div class="setting-info">
                         <strong>Rename Variables</strong>
-                        <span>Randomize identifiers</span>
+                        <small>Randomize identifiers</small>
                     </div>
 
                     <input
@@ -252,7 +244,7 @@
 
                     <div class="setting-info">
                         <strong>String Encryption</strong>
-                        <span>Protect string constants</span>
+                        <small>Protect string constants</small>
                     </div>
 
                     <input
@@ -270,7 +262,7 @@
 
                     <div class="setting-info">
                         <strong>Hide Constants</strong>
-                        <span>Transform constant values</span>
+                        <small>Transform constant values</small>
                     </div>
 
                     <input
@@ -288,7 +280,7 @@
 
                     <div class="setting-info">
                         <strong>Control Flow</strong>
-                        <span>Obfuscate execution flow</span>
+                        <small>Obfuscate execution flow</small>
                     </div>
 
                     <input
@@ -306,7 +298,7 @@
 
                     <div class="setting-info">
                         <strong>Dead Code</strong>
-                        <span>Inject unreachable blocks</span>
+                        <small>Inject unreachable blocks</small>
                     </div>
 
                     <input
@@ -324,7 +316,7 @@
 
                     <div class="setting-info">
                         <strong>Minify</strong>
-                        <span>Reduce source size</span>
+                        <small>Reduce source size</small>
                     </div>
 
                     <input
@@ -341,38 +333,30 @@
         </section>
 
 
-        <section class="features">
+        <section class="pipeline">
 
-            <div class="feature">
-                <div class="feature-number">01</div>
-                <div>
-                    <strong>Lexer</strong>
-                    <span>Luau source analysis</span>
-                </div>
+            <div class="pipeline-card">
+                <span>01</span>
+                <strong>Lexer</strong>
+                <small>Source analysis</small>
             </div>
 
-            <div class="feature">
-                <div class="feature-number">02</div>
-                <div>
-                    <strong>AST</strong>
-                    <span>Structure transformation</span>
-                </div>
+            <div class="pipeline-card">
+                <span>02</span>
+                <strong>AST</strong>
+                <small>Code transformation</small>
             </div>
 
-            <div class="feature">
-                <div class="feature-number">03</div>
-                <div>
-                    <strong>REGVM</strong>
-                    <span>Zisuay virtual machine</span>
-                </div>
+            <div class="pipeline-card">
+                <span>03</span>
+                <strong>REGVM</strong>
+                <small>Virtual machine</small>
             </div>
 
-            <div class="feature">
-                <div class="feature-number">04</div>
-                <div>
-                    <strong>Protected</strong>
-                    <span>zis_obfuscator watermark</span>
-                </div>
+            <div class="pipeline-card">
+                <span>04</span>
+                <strong>Protected</strong>
+                <small>zis_obfuscator</small>
             </div>
 
         </section>
@@ -381,11 +365,13 @@
 
 
     <footer>
+
         <span>Zis Luau Obfuscator Premium</span>
-        <span>•</span>
-        <span>zis_obfuscator</span>
-        <span>•</span>
-        <span>Zisuay</span>
+
+        <span class="footer-right">
+            Zisuay • zis_obfuscator
+        </span>
+
     </footer>
 
 </div>
