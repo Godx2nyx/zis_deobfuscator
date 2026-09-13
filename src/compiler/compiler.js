@@ -1,6 +1,4 @@
-"use strict";
-
-const AST = require("../ast/types");
+import * as AST from "../ast/types.js";
 
 class CompilerError extends Error {
     constructor(message, node = null) {
@@ -18,48 +16,37 @@ const OPCODE = Object.freeze({
     SETGLOBAL: 4,
     GETUPVAL: 5,
     SETUPVAL: 6,
-
     NEWTABLE: 7,
     GETTABLE: 8,
     SETTABLE: 9,
-
     ADD: 10,
     SUB: 11,
     MUL: 12,
     DIV: 13,
     MOD: 14,
     POW: 15,
-
     EQ: 16,
     NE: 17,
     LT: 18,
     LE: 19,
     GT: 20,
     GE: 21,
-
     AND: 22,
     OR: 23,
     NOT: 24,
     NEG: 25,
-
     CALL: 26,
     RETURN: 27,
-
     JMP: 28,
     JMPIF: 29,
     JMPIFNOT: 30,
-
     CLOSURE: 31,
-
     SETLOCAL: 32,
     GETLOCAL: 33,
-
     FORPREP: 34,
     FORLOOP: 35,
-
     CONCAT: 36,
     LEN: 37,
-
     POP: 38,
     HALT: 39
 });
@@ -215,8 +202,7 @@ class CompilerScope {
     }
 
     markLabel(label) {
-        label.position =
-            this.instructions.length;
+        label.position = this.instructions.length;
     }
 }
 
@@ -233,14 +219,16 @@ class Compiler {
     }
 
     compile(program) {
-        if (!program || program.type !== AST.NodeType.Program) {
+        if (
+            !program ||
+            program.type !== AST.NodeType.Program
+        ) {
             throw new CompilerError(
                 "Compiler expected Program AST"
             );
         }
 
-        this.root =
-            new CompilerScope();
+        this.root = new CompilerScope();
 
         this.compileBlock(
             this.root,
@@ -272,7 +260,6 @@ class Compiler {
         return {
             name: "Zisuay",
             watermark: "zis_obfuscator",
-
             version: 1,
 
             code: scope.instructions.map(
@@ -290,7 +277,8 @@ class Compiler {
                 })
             ),
 
-            constants: scope.constants.values.slice(),
+            constants:
+                scope.constants.values.slice(),
 
             maxRegisters:
                 scope.registers.max,
@@ -346,15 +334,11 @@ class Compiler {
                 break;
 
             case AST.NodeType.BreakStatement:
-                this.compileBreak(
-                    scope
-                );
+                this.compileBreak(scope);
                 break;
 
             case AST.NodeType.ContinueStatement:
-                this.compileContinue(
-                    scope
-                );
+                this.compileContinue(scope);
                 break;
 
             case AST.NodeType.IfStatement:
@@ -408,9 +392,11 @@ class Compiler {
     }
 
     compileLocal(scope, statement) {
-        for (let i = 0; i < statement.names.length; i++) {
-            const name =
-                statement.names[i].name;
+        const names = statement.names || [];
+        const expressions = statement.expressions || [];
+
+        for (let i = 0; i < names.length; i++) {
+            const name = names[i].name;
 
             const register =
                 scope.registers.allocate();
@@ -420,11 +406,11 @@ class Compiler {
                 register
             );
 
-            if (statement.expressions[i]) {
+            if (expressions[i]) {
                 const source =
                     this.compileExpression(
                         scope,
-                        statement.expressions[i]
+                        expressions[i]
                     );
 
                 scope.emit(
@@ -449,14 +435,14 @@ class Compiler {
         }
 
         for (
-            let i = statement.names.length;
-            i < statement.expressions.length;
+            let i = names.length;
+            i < expressions.length;
             i++
         ) {
             const temp =
                 this.compileExpression(
                     scope,
-                    statement.expressions[i]
+                    expressions[i]
                 );
 
             scope.registers.release(temp);
@@ -464,8 +450,14 @@ class Compiler {
     }
 
     compileAssignment(scope, statement) {
+        const expressions =
+            statement.expressions || [];
+
+        const variables =
+            statement.variables || [];
+
         const values =
-            statement.expressions.map(
+            expressions.map(
                 expression =>
                     this.compileExpression(
                         scope,
@@ -475,11 +467,11 @@ class Compiler {
 
         for (
             let i = 0;
-            i < statement.variables.length;
+            i < variables.length;
             i++
         ) {
             const target =
-                statement.variables[i];
+                variables[i];
 
             const source =
                 values[
@@ -621,9 +613,10 @@ class Compiler {
     }
 
     compileReturn(scope, statement) {
-        if (
-            statement.expressions.length === 0
-        ) {
+        const expressions =
+            statement.expressions || [];
+
+        if (expressions.length === 0) {
             scope.emit(
                 OPCODE.RETURN,
                 0,
@@ -634,7 +627,7 @@ class Compiler {
         }
 
         const values =
-            statement.expressions.map(
+            expressions.map(
                 expression =>
                     this.compileExpression(
                         scope,
@@ -780,14 +773,13 @@ class Compiler {
             statement.body
         );
 
-        const backJump =
-            scope.emit(
-                OPCODE.JMP,
-                0,
-                0,
-                0,
-                loopStart
-            );
+        scope.emit(
+            OPCODE.JMP,
+            0,
+            0,
+            0,
+            loopStart
+        );
 
         scope.patch(
             exitJump,
@@ -799,8 +791,6 @@ class Compiler {
             loopStart,
             scope.instructions.length
         );
-
-        return backJump;
     }
 
     compileRepeat(scope, statement) {
@@ -869,16 +859,17 @@ class Compiler {
             variable
         );
 
-        scope.emit(
-            OPCODE.FORPREP,
-            variable,
-            start,
-            end,
-            {
-                step,
-                target: null
-            }
-        );
+        const prepIndex =
+            scope.emit(
+                OPCODE.FORPREP,
+                variable,
+                start,
+                end,
+                {
+                    step,
+                    target: null
+                }
+            );
 
         const bodyStart =
             scope.instructions.length;
@@ -899,14 +890,9 @@ class Compiler {
         const exit =
             scope.instructions.length;
 
-        const prepIndex =
-            bodyStart - 1;
-
-        if (scope.instructions[prepIndex]) {
-            scope.instructions[
-                prepIndex
-            ].extra.target = exit;
-        }
+        scope.instructions[
+            prepIndex
+        ].extra.target = exit;
 
         scope.registers.release(start);
         scope.registers.release(end);
@@ -914,17 +900,20 @@ class Compiler {
     }
 
     compileGenericFor(scope, statement) {
+        const iterators =
+            statement.iterators || [];
+
         const iterator =
             this.compileExpression(
                 scope,
-                statement.iterators[0]
+                iterators[0]
             );
 
         const state =
-            statement.iterators[1]
+            iterators[1]
                 ? this.compileExpression(
                     scope,
-                    statement.iterators[1]
+                    iterators[1]
                 )
                 : this.loadConstant(
                     scope,
@@ -932,10 +921,10 @@ class Compiler {
                 );
 
         const control =
-            statement.iterators[2]
+            iterators[2]
                 ? this.compileExpression(
                     scope,
-                    statement.iterators[2]
+                    iterators[2]
                 )
                 : this.loadConstant(
                     scope,
@@ -943,7 +932,7 @@ class Compiler {
                 );
 
         const variables =
-            statement.variables.map(
+            (statement.variables || []).map(
                 variable => {
                     const register =
                         scope.registers.allocate();
@@ -965,7 +954,8 @@ class Compiler {
                 variables.length,
                 {
                     state,
-                    control
+                    control,
+                    exit: null
                 }
             );
 
@@ -1015,7 +1005,10 @@ class Compiler {
         const child =
             new CompilerScope(scope);
 
-        for (const parameter of statement.parameters || []) {
+        for (
+            const parameter of
+            statement.parameters || []
+        ) {
             const register =
                 child.registers.allocate();
 
@@ -1048,9 +1041,7 @@ class Compiler {
         const functionIndex =
             scope.functions.length;
 
-        scope.functions.push(
-            child
-        );
+        scope.functions.push(child);
 
         const destination =
             this.getOrCreateVariableRegister(
@@ -1067,6 +1058,13 @@ class Compiler {
     }
 
     compileExpression(scope, expression) {
+        if (!expression) {
+            return this.loadConstant(
+                scope,
+                null
+            );
+        }
+
         switch (expression.type) {
             case AST.NodeType.Identifier:
                 return this.compileIdentifier(
@@ -1224,6 +1222,14 @@ class Compiler {
                 );
                 break;
 
+            case "#":
+                scope.emit(
+                    OPCODE.LEN,
+                    destination,
+                    argument
+                );
+                break;
+
             default:
                 throw new CompilerError(
                     `Unsupported unary operator ${expression.operator}`
@@ -1265,13 +1271,8 @@ class Compiler {
             right
         );
 
-        scope.registers.release(
-            left
-        );
-
-        scope.registers.release(
-            right
-        );
+        scope.registers.release(left);
+        scope.registers.release(right);
 
         return destination;
     }
@@ -1284,7 +1285,7 @@ class Compiler {
             );
 
         const args =
-            expression.arguments.map(
+            (expression.arguments || []).map(
                 argument =>
                     this.compileExpression(
                         scope,
@@ -1305,14 +1306,10 @@ class Compiler {
             }
         );
 
-        scope.registers.release(
-            callee
-        );
+        scope.registers.release(callee);
 
         for (const register of args) {
-            scope.registers.release(
-                register
-            );
+            scope.registers.release(register);
         }
 
         return destination;
@@ -1331,7 +1328,7 @@ class Compiler {
             );
 
         const args =
-            expression.arguments.map(
+            (expression.arguments || []).map(
                 argument =>
                     this.compileExpression(
                         scope,
@@ -1354,14 +1351,10 @@ class Compiler {
             }
         );
 
-        scope.registers.release(
-            object
-        );
+        scope.registers.release(object);
 
         for (const register of args) {
-            scope.registers.release(
-                register
-            );
+            scope.registers.release(register);
         }
 
         return destination;
@@ -1389,9 +1382,7 @@ class Compiler {
             property
         );
 
-        scope.registers.release(
-            object
-        );
+        scope.registers.release(object);
 
         return destination;
     }
@@ -1419,30 +1410,27 @@ class Compiler {
             index
         );
 
-        scope.registers.release(
-            object
-        );
-
-        scope.registers.release(
-            index
-        );
+        scope.registers.release(object);
+        scope.registers.release(index);
 
         return destination;
     }
 
     compileTable(scope, expression) {
+        const fields = expression.fields || [];
+
         const destination =
             scope.registers.allocate();
 
         scope.emit(
             OPCODE.NEWTABLE,
             destination,
-            expression.fields.length
+            fields.length
         );
 
         let arrayIndex = 1;
 
-        for (const field of expression.fields) {
+        for (const field of fields) {
             if (
                 field.type === AST.NodeType.TableField
             ) {
@@ -1465,19 +1453,15 @@ class Compiler {
                     value
                 );
 
-                scope.registers.release(
-                    key
-                );
-
-                scope.registers.release(
-                    value
-                );
+                scope.registers.release(key);
+                scope.registers.release(value);
 
                 continue;
             }
 
             if (
-                field.type === AST.NodeType.TableKeyField
+                field.type ===
+                AST.NodeType.TableKeyField
             ) {
                 const key =
                     this.loadConstant(
@@ -1498,19 +1482,15 @@ class Compiler {
                     value
                 );
 
-                scope.registers.release(
-                    key
-                );
-
-                scope.registers.release(
-                    value
-                );
+                scope.registers.release(key);
+                scope.registers.release(value);
 
                 continue;
             }
 
             if (
-                field.type === AST.NodeType.TableIndexField
+                field.type ===
+                AST.NodeType.TableIndexField
             ) {
                 const key =
                     this.compileExpression(
@@ -1531,13 +1511,8 @@ class Compiler {
                     value
                 );
 
-                scope.registers.release(
-                    key
-                );
-
-                scope.registers.release(
-                    value
-                );
+                scope.registers.release(key);
+                scope.registers.release(value);
             }
         }
 
@@ -1548,7 +1523,10 @@ class Compiler {
         const child =
             new CompilerScope(scope);
 
-        for (const parameter of expression.parameters || []) {
+        for (
+            const parameter of
+            expression.parameters || []
+        ) {
             const register =
                 child.registers.allocate();
 
@@ -1563,20 +1541,25 @@ class Compiler {
             expression.body
         );
 
-        child.emit(
-            OPCODE.RETURN,
-            0,
-            0
-        );
+        if (
+            child.instructions.length === 0 ||
+            child.instructions[
+                child.instructions.length - 1
+            ].op !== OPCODE.RETURN
+        ) {
+            child.emit(
+                OPCODE.RETURN,
+                0,
+                0
+            );
+        }
 
         this.resolveJumps(child);
 
         const functionIndex =
             scope.functions.length;
 
-        scope.functions.push(
-            child
-        );
+        scope.functions.push(child);
 
         const destination =
             scope.registers.allocate();
@@ -1608,7 +1591,10 @@ class Compiler {
     }
 
     getOrCreateVariableRegister(scope, name) {
-        if (name.type === AST.NodeType.Identifier) {
+        if (
+            name &&
+            name.type === AST.NodeType.Identifier
+        ) {
             if (scope.locals.has(name.name)) {
                 return scope.locals.get(
                     name.name
@@ -1626,6 +1612,22 @@ class Compiler {
             return register;
         }
 
+        if (typeof name === "string") {
+            if (scope.locals.has(name)) {
+                return scope.locals.get(name);
+            }
+
+            const register =
+                scope.registers.allocate();
+
+            scope.locals.set(
+                name,
+                register
+            );
+
+            return register;
+        }
+
         throw new CompilerError(
             "Invalid function declaration name"
         );
@@ -1636,9 +1638,7 @@ class Compiler {
 
         while (current) {
             if (current.locals.has(name)) {
-                return current.locals.get(
-                    name
-                );
+                return current.locals.get(name);
             }
 
             current = current.parent;
@@ -1653,6 +1653,7 @@ class Compiler {
             "-": OPCODE.SUB,
             "*": OPCODE.MUL,
             "/": OPCODE.DIV,
+            "//": OPCODE.DIV,
             "%": OPCODE.MOD,
             "^": OPCODE.POW,
 
@@ -1680,7 +1681,11 @@ class Compiler {
         return opcode;
     }
 
-    patchLoopControl(scope, continueTarget, breakTarget) {
+    patchLoopControl(
+        scope,
+        continueTarget,
+        breakTarget
+    ) {
         for (const jump of scope.pendingJumps) {
             if (jump.type === "break") {
                 scope.patch(
@@ -1706,13 +1711,17 @@ class Compiler {
     }
 
     resolveJumps(scope) {
-        for (const instruction of scope.instructions) {
+        for (
+            const instruction of
+            scope.instructions
+        ) {
             if (
                 instruction.extra &&
                 typeof instruction.extra === "object"
             ) {
                 if (
-                    instruction.extra.target !== undefined &&
+                    instruction.extra.target !==
+                        undefined &&
                     instruction.extra.target !== null
                 ) {
                     instruction.extra.target =
@@ -1722,7 +1731,8 @@ class Compiler {
                 }
 
                 if (
-                    instruction.extra.exit !== undefined &&
+                    instruction.extra.exit !==
+                        undefined &&
                     instruction.extra.exit !== null
                 ) {
                     instruction.extra.exit =
@@ -1735,7 +1745,7 @@ class Compiler {
     }
 }
 
-module.exports = {
+export {
     Compiler,
     CompilerError,
     Instruction,
@@ -1744,3 +1754,5 @@ module.exports = {
     CompilerScope,
     OPCODE
 };
+
+export default Compiler;
