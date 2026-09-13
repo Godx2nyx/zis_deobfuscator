@@ -1,5 +1,3 @@
-"use strict";
-
 const NodeType = Object.freeze({
     Program: "Program",
 
@@ -164,7 +162,11 @@ function TableKeyField(key, value) {
     });
 }
 
-function FunctionExpression(parameters = [], body = [], isVararg = false) {
+function FunctionExpression(
+    parameters = [],
+    body = [],
+    isVararg = false
+) {
     return node(NodeType.FunctionExpression, {
         parameters,
         body,
@@ -172,14 +174,20 @@ function FunctionExpression(parameters = [], body = [], isVararg = false) {
     });
 }
 
-function AssignmentStatement(variables = [], expressions = []) {
+function AssignmentStatement(
+    variables = [],
+    expressions = []
+) {
     return node(NodeType.AssignmentStatement, {
         variables,
         expressions
     });
 }
 
-function LocalDeclaration(names = [], expressions = []) {
+function LocalDeclaration(
+    names = [],
+    expressions = []
+) {
     return node(NodeType.LocalDeclaration, {
         names,
         expressions
@@ -212,7 +220,11 @@ function BlockStatement(body = []) {
     });
 }
 
-function IfStatement(test, consequent = [], alternate = null) {
+function IfStatement(
+    test,
+    consequent = [],
+    alternate = null
+) {
     return node(NodeType.IfStatement, {
         test,
         consequent,
@@ -317,7 +329,7 @@ function cloneNode(value) {
     return result;
 }
 
-module.exports = {
+export {
     NodeType,
 
     node,
@@ -365,6 +377,44 @@ module.exports = {
 
     FunctionDeclaration,
 
+    isNode,
+    cloneNode
+};
+
+export default {
+    NodeType,
+    node,
+    Program,
+    Identifier,
+    NumberLiteral,
+    StringLiteral,
+    BooleanLiteral,
+    NilLiteral,
+    VarargExpression,
+    UnaryExpression,
+    BinaryExpression,
+    CallExpression,
+    MethodCallExpression,
+    MemberExpression,
+    IndexExpression,
+    TableExpression,
+    TableField,
+    TableIndexField,
+    TableKeyField,
+    FunctionExpression,
+    AssignmentStatement,
+    LocalDeclaration,
+    ExpressionStatement,
+    ReturnStatement,
+    BreakStatement,
+    ContinueStatement,
+    BlockStatement,
+    IfStatement,
+    WhileStatement,
+    RepeatStatement,
+    ForNumericStatement,
+    ForGenericStatement,
+    FunctionDeclaration,
     isNode,
     cloneNode
 };
