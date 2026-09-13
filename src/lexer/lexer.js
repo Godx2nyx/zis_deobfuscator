@@ -1,6 +1,4 @@
-"use strict";
-
-const { Token, TokenType, keywordType } = require("./token");
+import { Token, TokenType, keywordType } from "./token.js";
 
 class LexerError extends Error {
     constructor(message, line, column, source) {
@@ -57,9 +55,17 @@ class Lexer {
             return;
         }
 
-        if (this.index === 0 && char === "#" && this.peek(1) === "!") {
-            this.skipLineComment(true);
-            return;
+        if (
+            this.index === 0 &&
+            char === "#" &&
+            this.peek(1) === "!"
+        ) {
+            if (this.options.allowShebang) {
+                this.skipLineComment();
+                return;
+            }
+
+            this.error("Shebang is not allowed");
         }
 
         if (char === "-" && this.peek(1) === "-") {
@@ -72,17 +78,28 @@ class Lexer {
             return;
         }
 
-        if (this.isDigit(char) || (char === "." && this.isDigit(this.peek(1)))) {
+        if (
+            this.isDigit(char) ||
+            (char === "." && this.isDigit(this.peek(1)))
+        ) {
             this.scanNumber();
             return;
         }
 
-        if (char === "'" || char === '"' || char === "`") {
+        if (
+            char === "'" ||
+            char === '"' ||
+            char === "`"
+        ) {
             this.scanString(char);
             return;
         }
 
-        if (char === "." && this.peek(1) === "." && this.peek(2) === ".") {
+        if (
+            char === "." &&
+            this.peek(1) === "." &&
+            this.peek(2) === "."
+        ) {
             this.addToken(
                 TokenType.Vararg,
                 "...",
@@ -91,7 +108,10 @@ class Lexer {
             return;
         }
 
-        if (char === "." && this.peek(1) === ".") {
+        if (
+            char === "." &&
+            this.peek(1) === "."
+        ) {
             this.addToken(
                 TokenType.Dot,
                 "..",
@@ -100,7 +120,10 @@ class Lexer {
             return;
         }
 
-        if (char === ":" && this.peek(1) === ":") {
+        if (
+            char === ":" &&
+            this.peek(1) === ":"
+        ) {
             this.addToken(
                 TokenType.DoubleColon,
                 "::",
@@ -109,28 +132,63 @@ class Lexer {
             return;
         }
 
-        if (char === "=" && this.peek(1) === "=") {
-            this.addToken(TokenType.Equal, "==", 2);
+        if (
+            char === "=" &&
+            this.peek(1) === "="
+        ) {
+            this.addToken(
+                TokenType.Equal,
+                "==",
+                2
+            );
             return;
         }
 
-        if (char === "~" && this.peek(1) === "=") {
-            this.addToken(TokenType.NotEqual, "~=", 2);
+        if (
+            char === "~" &&
+            this.peek(1) === "="
+        ) {
+            this.addToken(
+                TokenType.NotEqual,
+                "~=",
+                2
+            );
             return;
         }
 
-        if (char === "<" && this.peek(1) === "=") {
-            this.addToken(TokenType.LessEqual, "<=", 2);
+        if (
+            char === "<" &&
+            this.peek(1) === "="
+        ) {
+            this.addToken(
+                TokenType.LessEqual,
+                "<=",
+                2
+            );
             return;
         }
 
-        if (char === ">" && this.peek(1) === "=") {
-            this.addToken(TokenType.GreaterEqual, ">=", 2);
+        if (
+            char === ">" &&
+            this.peek(1) === "="
+        ) {
+            this.addToken(
+                TokenType.GreaterEqual,
+                ">=",
+                2
+            );
             return;
         }
 
-        if (char === "/" && this.peek(1) === "/") {
-            this.addToken(TokenType.FloorDivide, "//", 2);
+        if (
+            char === "/" &&
+            this.peek(1) === "/"
+        ) {
+            this.addToken(
+                TokenType.FloorDivide,
+                "//",
+                2
+            );
             return;
         }
 
@@ -161,12 +219,18 @@ class Lexer {
             ";": TokenType.Semicolon
         };
 
-        if (single[char]) {
-            this.addToken(single[char], char, 1);
+        if (single[char] !== undefined) {
+            this.addToken(
+                single[char],
+                char,
+                1
+            );
             return;
         }
 
-        this.error(`Unexpected character ${JSON.stringify(char)}`);
+        this.error(
+            `Unexpected character ${JSON.stringify(char)}`
+        );
     }
 
     scanIdentifier() {
@@ -180,7 +244,11 @@ class Lexer {
             this.advance();
         }
 
-        const value = this.source.slice(start, this.index);
+        const value = this.source.slice(
+            start,
+            this.index
+        );
+
         const type = keywordType(value);
 
         this.tokens.push(
@@ -202,9 +270,16 @@ class Lexer {
 
         let value = "";
 
-        if (this.peek() === "0" && this.peek(1).toLowerCase() === "x") {
+        if (
+            this.peek() === "0" &&
+            this.peek(1).toLowerCase() === "x"
+        ) {
             value += this.advance();
             value += this.advance();
+
+            if (!this.isHexDigit(this.peek())) {
+                this.error("Invalid hexadecimal number");
+            }
 
             while (this.isHexDigit(this.peek())) {
                 value += this.advance();
@@ -218,15 +293,22 @@ class Lexer {
                 }
             }
 
-            if (this.peek().toLowerCase() === "p") {
+            if (
+                this.peek().toLowerCase() === "p"
+            ) {
                 value += this.advance();
 
-                if (this.peek() === "+" || this.peek() === "-") {
+                if (
+                    this.peek() === "+" ||
+                    this.peek() === "-"
+                ) {
                     value += this.advance();
                 }
 
                 if (!this.isDigit(this.peek())) {
-                    this.error("Invalid hexadecimal exponent");
+                    this.error(
+                        "Invalid hexadecimal exponent"
+                    );
                 }
 
                 while (this.isDigit(this.peek())) {
@@ -245,7 +327,11 @@ class Lexer {
                 value += this.advance();
             }
 
-            if (!hasDot && this.peek() === "." && this.peek(1) !== ".") {
+            if (
+                !hasDot &&
+                this.peek() === "." &&
+                this.peek(1) !== "."
+            ) {
                 hasDot = true;
                 value += this.advance();
 
@@ -254,15 +340,22 @@ class Lexer {
                 }
             }
 
-            if (this.peek().toLowerCase() === "e") {
+            if (
+                this.peek().toLowerCase() === "e"
+            ) {
                 value += this.advance();
 
-                if (this.peek() === "+" || this.peek() === "-") {
+                if (
+                    this.peek() === "+" ||
+                    this.peek() === "-"
+                ) {
                     value += this.advance();
                 }
 
                 if (!this.isDigit(this.peek())) {
-                    this.error("Invalid numeric exponent");
+                    this.error(
+                        "Invalid numeric exponent"
+                    );
                 }
 
                 while (this.isDigit(this.peek())) {
@@ -327,7 +420,10 @@ class Lexer {
                 continue;
             }
 
-            if (char === "\n" || char === "\r") {
+            if (
+                char === "\n" ||
+                char === "\r"
+            ) {
                 this.error("Unterminated string");
             }
 
@@ -354,7 +450,12 @@ class Lexer {
             "`": "`"
         };
 
-        if (Object.prototype.hasOwnProperty.call(escapes, char)) {
+        if (
+            Object.prototype.hasOwnProperty.call(
+                escapes,
+                char
+            )
+        ) {
             return escapes[char];
         }
 
@@ -374,8 +475,13 @@ class Lexer {
             const a = this.peek();
             const b = this.peek(1);
 
-            if (!this.isHexDigit(a) || !this.isHexDigit(b)) {
-                this.error("Invalid hexadecimal escape");
+            if (
+                !this.isHexDigit(a) ||
+                !this.isHexDigit(b)
+            ) {
+                this.error(
+                    "Invalid hexadecimal escape"
+                );
             }
 
             this.advance();
@@ -386,33 +492,50 @@ class Lexer {
             );
         }
 
-        if (char === "u" && this.peek() === "{") {
+        if (
+            char === "u" &&
+            this.peek() === "{"
+        ) {
             this.advance();
 
             let hex = "";
 
-            while (!this.isEOF() && this.peek() !== "}") {
+            while (
+                !this.isEOF() &&
+                this.peek() !== "}"
+            ) {
                 if (!this.isHexDigit(this.peek())) {
-                    this.error("Invalid Unicode escape");
+                    this.error(
+                        "Invalid Unicode escape"
+                    );
                 }
 
                 hex += this.advance();
 
                 if (hex.length > 6) {
-                    this.error("Unicode escape is too long");
+                    this.error(
+                        "Unicode escape is too long"
+                    );
                 }
             }
 
             if (this.peek() !== "}") {
-                this.error("Unterminated Unicode escape");
+                this.error(
+                    "Unterminated Unicode escape"
+                );
             }
 
             this.advance();
 
             const codePoint = parseInt(hex, 16);
 
-            if (!Number.isFinite(codePoint) || codePoint > 0x10ffff) {
-                this.error("Invalid Unicode code point");
+            if (
+                !Number.isFinite(codePoint) ||
+                codePoint > 0x10ffff
+            ) {
+                this.error(
+                    "Invalid Unicode code point"
+                );
             }
 
             return String.fromCodePoint(codePoint);
@@ -421,14 +544,21 @@ class Lexer {
         if (this.isDigit(char)) {
             let digits = char;
 
-            for (let i = 0; i < 2 && this.isDigit(this.peek()); i++) {
+            for (
+                let i = 0;
+                i < 2 &&
+                this.isDigit(this.peek());
+                i++
+            ) {
                 digits += this.advance();
             }
 
             const code = Number(digits);
 
             if (code > 255) {
-                this.error("Decimal escape is out of range");
+                this.error(
+                    "Decimal escape is out of range"
+                );
             }
 
             return String.fromCharCode(code);
@@ -466,14 +596,17 @@ class Lexer {
             }
         }
 
-        this.skipLineComment(false, start, line, column);
+        this.skipLineComment();
     }
 
     skipLineComment() {
         while (!this.isEOF()) {
             const char = this.peek();
 
-            if (char === "\n" || char === "\r") {
+            if (
+                char === "\n" ||
+                char === "\r"
+            ) {
                 break;
             }
 
@@ -544,7 +677,11 @@ class Lexer {
 
                     this.advance();
 
-                    for (let i = 0; i < level; i++) {
+                    for (
+                        let i = 0;
+                        i < level;
+                        i++
+                    ) {
                         this.advance();
                     }
 
@@ -561,7 +698,10 @@ class Lexer {
     }
 
     skipWhitespace() {
-        while (!this.isEOF() && this.isWhitespace(this.peek())) {
+        while (
+            !this.isEOF() &&
+            this.isWhitespace(this.peek())
+        ) {
             this.advance();
         }
     }
@@ -571,7 +711,11 @@ class Lexer {
         const line = this.line;
         const column = this.column;
 
-        for (let i = 0; i < length; i++) {
+        for (
+            let i = 0;
+            i < length;
+            i++
+        ) {
             this.advance();
         }
 
@@ -601,12 +745,14 @@ class Lexer {
 
             this.line++;
             this.column = 1;
+
             return "\n";
         }
 
         if (char === "\n") {
             this.line++;
             this.column = 1;
+
             return char;
         }
 
@@ -618,7 +764,10 @@ class Lexer {
     peek(offset = 0) {
         const position = this.index + offset;
 
-        if (position < 0 || position >= this.length) {
+        if (
+            position < 0 ||
+            position >= this.length
+        ) {
             return "\0";
         }
 
@@ -641,7 +790,10 @@ class Lexer {
     }
 
     isDigit(char) {
-        return char >= "0" && char <= "9";
+        return (
+            char >= "0" &&
+            char <= "9"
+        );
     }
 
     isHexDigit(char) {
@@ -681,8 +833,10 @@ function tokenize(source, options = {}) {
     return new Lexer(source, options).tokenize();
 }
 
-module.exports = {
+export {
     Lexer,
     LexerError,
     tokenize
 };
+
+export default Lexer;
