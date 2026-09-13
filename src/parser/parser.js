@@ -1,7 +1,5 @@
-"use strict";
-
-const { TokenType } = require("../lexer/token");
-const AST = require("../ast/types");
+import { TokenType } from "../lexer/token.js";
+import * as AST from "../ast/types.js";
 
 class ParserError extends Error {
     constructor(message, token) {
@@ -23,7 +21,10 @@ class Parser {
     parse() {
         const body = this.parseBlock([]);
 
-        this.expect(TokenType.EOF, "Expected end of input");
+        this.expect(
+            TokenType.EOF,
+            "Expected end of input"
+        );
 
         return AST.Program(body);
     }
@@ -89,7 +90,9 @@ class Parser {
                 continue;
             }
 
-            statements.push(this.parseStatement());
+            statements.push(
+                this.parseStatement()
+            );
 
             this.match(TokenType.Semicolon);
         }
@@ -147,7 +150,9 @@ class Parser {
         const names = [];
 
         names.push(
-            this.expectIdentifier("Expected local variable name")
+            this.expectIdentifier(
+                "Expected local variable name"
+            )
         );
 
         while (this.match(TokenType.Comma)) {
@@ -161,7 +166,9 @@ class Parser {
         const expressions = [];
 
         if (this.match(TokenType.Assign)) {
-            expressions.push(...this.parseExpressionList());
+            expressions.push(
+                ...this.parseExpressionList()
+            );
         }
 
         return AST.LocalDeclaration(
@@ -182,12 +189,22 @@ class Parser {
 
         let isMethod = false;
 
-        while (this.match(TokenType.Dot, TokenType.Colon)) {
+        while (
+            this.match(
+                TokenType.Dot,
+                TokenType.Colon
+            )
+        ) {
+            const separator = this.previous();
+
             const part = this.expectIdentifier(
                 "Expected function name component"
             );
 
-            if (this.previous().type === TokenType.Colon) {
+            if (
+                separator.type ===
+                TokenType.Colon
+            ) {
                 isMethod = true;
             }
 
@@ -197,15 +214,18 @@ class Parser {
             );
         }
 
-        const { parameters, body, isVararg } =
-            this.parseFunctionBody();
+        const {
+            parameters,
+            body,
+            isVararg
+        } = this.parseFunctionBody();
 
         return AST.FunctionDeclaration(
             name,
             parameters,
             body,
             isLocal,
-            isMethod || false
+            isMethod
         );
     }
 
@@ -229,7 +249,9 @@ class Parser {
                 );
 
                 while (this.match(TokenType.Comma)) {
-                    if (this.match(TokenType.Vararg)) {
+                    if (
+                        this.match(TokenType.Vararg)
+                    ) {
                         isVararg = true;
                         break;
                     }
@@ -283,12 +305,48 @@ class Parser {
         let alternate = null;
 
         if (this.match(TokenType.ElseIf)) {
-            this.position--;
+            const elseifTest =
+                this.parseExpression();
+
+            this.expect(
+                TokenType.Then,
+                "Expected 'then'"
+            );
+
+            const elseifConsequent =
+                this.parseBlock([
+                    TokenType.ElseIf,
+                    TokenType.Else,
+                    TokenType.End
+                ]);
+
+            let elseifAlternate = null;
+
+            if (this.match(TokenType.ElseIf)) {
+                this.position--;
+
+                elseifAlternate = [
+                    this.parseIf()
+                ];
+            } else if (
+                this.match(TokenType.Else)
+            ) {
+                elseifAlternate =
+                    this.parseBlock([
+                        TokenType.End
+                    ]);
+            }
 
             alternate = [
-                this.parseIf()
+                AST.IfStatement(
+                    elseifTest,
+                    elseifConsequent,
+                    elseifAlternate
+                )
             ];
-        } else if (this.match(TokenType.Else)) {
+        } else if (
+            this.match(TokenType.Else)
+        ) {
             alternate = this.parseBlock([
                 TokenType.End
             ]);
@@ -359,19 +417,22 @@ class Parser {
         );
 
         if (this.match(TokenType.Assign)) {
-            const start = this.parseExpression();
+            const start =
+                this.parseExpression();
 
             this.expect(
                 TokenType.Comma,
                 "Expected ',' in numeric for"
             );
 
-            const end = this.parseExpression();
+            const end =
+                this.parseExpression();
 
             let step = null;
 
             if (this.match(TokenType.Comma)) {
-                step = this.parseExpression();
+                step =
+                    this.parseExpression();
             }
 
             this.expect(
@@ -412,7 +473,8 @@ class Parser {
             "Expected 'in'"
         );
 
-        const iterators = this.parseExpressionList();
+        const iterators =
+            this.parseExpressionList();
 
         this.expect(
             TokenType.Do,
@@ -455,7 +517,8 @@ class Parser {
     }
 
     parseExpressionOrAssignment() {
-        const first = this.parsePrefixExpression();
+        const first =
+            this.parsePrefixExpression();
 
         if (
             this.check(TokenType.Assign) ||
@@ -491,9 +554,12 @@ class Parser {
             this.parsePrefixExpression();
 
         if (
-            expression.type !== AST.NodeType.Identifier &&
-            expression.type !== AST.NodeType.MemberExpression &&
-            expression.type !== AST.NodeType.IndexExpression
+            expression.type !==
+                AST.NodeType.Identifier &&
+            expression.type !==
+                AST.NodeType.MemberExpression &&
+            expression.type !==
+                AST.NodeType.IndexExpression
         ) {
             throw new ParserError(
                 "Invalid assignment target",
@@ -523,28 +589,34 @@ class Parser {
     }
 
     parseBinaryExpression(minPrecedence) {
-        let left = this.parseUnaryExpression();
+        let left =
+            this.parseUnaryExpression();
 
         while (true) {
-            const operator = this.getBinaryOperator(
-                this.current()
-            );
+            const operator =
+                this.getBinaryOperator(
+                    this.current()
+                );
 
             if (!operator) {
                 break;
             }
 
-            if (operator.precedence < minPrecedence) {
+            if (
+                operator.precedence <
+                minPrecedence
+            ) {
                 break;
             }
 
             this.advance();
 
-            const right = this.parseBinaryExpression(
-                operator.rightAssociative
-                    ? operator.precedence
-                    : operator.precedence + 1
-            );
+            const right =
+                this.parseBinaryExpression(
+                    operator.rightAssociative
+                        ? operator.precedence
+                        : operator.precedence + 1
+                );
 
             left = AST.BinaryExpression(
                 operator.value,
@@ -563,7 +635,8 @@ class Parser {
                 TokenType.Minus
             )
         ) {
-            const operator = this.previous().value;
+            const operator =
+                this.previous().value;
 
             return AST.UnaryExpression(
                 operator,
@@ -575,7 +648,8 @@ class Parser {
     }
 
     parsePrefixExpression() {
-        let expression = this.parsePrimaryExpression();
+        let expression =
+            this.parsePrimaryExpression();
 
         while (true) {
             if (this.match(TokenType.Dot)) {
@@ -584,15 +658,18 @@ class Parser {
                         "Expected property name"
                     );
 
-                expression = AST.MemberExpression(
-                    expression,
-                    property
-                );
+                expression =
+                    AST.MemberExpression(
+                        expression,
+                        property
+                    );
 
                 continue;
             }
 
-            if (this.match(TokenType.LeftBracket)) {
+            if (
+                this.match(TokenType.LeftBracket)
+            ) {
                 const index =
                     this.parseExpression();
 
@@ -601,10 +678,11 @@ class Parser {
                     "Expected ']'"
                 );
 
-                expression = AST.IndexExpression(
-                    expression,
-                    index
-                );
+                expression =
+                    AST.IndexExpression(
+                        expression,
+                        index
+                    );
 
                 continue;
             }
@@ -699,7 +777,7 @@ class Parser {
 
                 return this.parseFunctionExpression();
 
-            case TokenType.LeftParen:
+            case TokenType.LeftParen: {
                 this.advance();
 
                 const expression =
@@ -711,6 +789,7 @@ class Parser {
                 );
 
                 return expression;
+            }
 
             case TokenType.LeftBrace:
                 return this.parseTable();
@@ -739,7 +818,9 @@ class Parser {
 
     parseArguments() {
         if (this.match(TokenType.LeftParen)) {
-            if (this.match(TokenType.RightParen)) {
+            if (
+                this.match(TokenType.RightParen)
+            ) {
                 return [];
             }
 
@@ -806,7 +887,8 @@ class Parser {
                 );
             } else if (
                 this.check(TokenType.Identifier) &&
-                this.peek()?.type === TokenType.Assign
+                this.peek()?.type ===
+                    TokenType.Assign
             ) {
                 const key =
                     this.parsePrimaryExpression();
@@ -938,7 +1020,9 @@ class Parser {
     }
 
     expectIdentifier(message) {
-        if (!this.check(TokenType.Identifier)) {
+        if (
+            !this.check(TokenType.Identifier)
+        ) {
             throw new ParserError(
                 message || "Expected identifier",
                 this.current()
@@ -954,8 +1038,10 @@ class Parser {
 
     parseNumber(raw) {
         const normalized =
-            String(raw)
-                .replace(/_/g, "");
+            String(raw).replace(
+                /_/g,
+                ""
+            );
 
         if (/^0[xX]/.test(normalized)) {
             const value =
@@ -984,8 +1070,10 @@ function parse(tokens) {
     return new Parser(tokens).parse();
 }
 
-module.exports = {
+export {
     Parser,
     ParserError,
     parse
 };
+
+export default Parser;
