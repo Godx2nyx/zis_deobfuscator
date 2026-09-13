@@ -1,0 +1,14 @@
+{
+  "name": "zis-obfuscator",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Zis Obfuscator",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.21.2"
+  }
+}
