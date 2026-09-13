@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Zis Obfuscator</title>
+
+    <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+
+    <header class="navbar">
+        <div class="brand">
+            <span class="brand-mark">Z</span>
+            <div>
+                <strong>Zis Obfuscator</strong>
+                <small>zis_obfuscator</small>
+            </div>
+        </div>
+
+        <div class="version">
+            v0.1.0
+        </div>
+    </header>
+
+    <main class="container">
+
+        <section class="hero">
+            <div class="badge">LUAU PROCESSING ENGINE</div>
+
+            <h1>
+                Zis Obfuscator
+            </h1>
+
+            <p>
+                Virtualization-ready Luau processing system.
+            </p>
+        </section>
+
+        <section class="workspace">
+
+            <div class="panel">
+                <div class="panel-header">
+                    <span>Input</span>
+                    <span class="file-name">input.lua</span>
+                </div>
+
+                <textarea
+                    id="input"
+                    spellcheck="false"
+                    placeholder="Paste your Luau source here..."
+                ></textarea>
+            </div>
+
+            <div class="actions">
+                <button id="process">Process</button>
+                <button id="clear" class="secondary">Clear</button>
+            </div>
+
+            <div class="panel">
+                <div class="panel-header">
+                    <span>Output</span>
+                    <span class="file-name">output.lua</span>
+                </div>
+
+                <textarea
+                    id="output"
+                    spellcheck="false"
+                    readonly
+                    placeholder="Processed source will appear here..."
+                ></textarea>
+            </div>
+
+        </section>
+
+        <section class="settings">
+
+            <div class="setting">
+                <span>
+                    <strong>Rename Variables</strong>
+                    <small>Rename local identifiers</small>
+                </span>
+
+                <label class="switch">
+                    <input type="checkbox" id="rename" checked>
+                    <span></span>
+                </label>
+            </div>
+
+            <div class="setting">
+                <span>
+                    <strong>Process Strings</strong>
+                    <small>Prepare strings for transformation</small>
+                </span>
+
+                <label class="switch">
+                    <input type="checkbox" id="strings" checked>
+                    <span></span>
+                </label>
+            </div>
+
+            <div class="setting">
+                <span>
+                    <strong>Minify</strong>
+                    <small>Reduce generated source size</small>
+                </span>
+
+                <label class="switch">
+                    <input type="checkbox" id="minify">
+                    <span></span>
+                </label>
+            </div>
+
+        </section>
+
+        <footer>
+            <span>zis_obfuscator</span>
+            <span>Chunk: Zisuay</span>
+        </footer>
+
+    </main>
+
+    <script src="/app.js"></script>
+</body>
+</html>
