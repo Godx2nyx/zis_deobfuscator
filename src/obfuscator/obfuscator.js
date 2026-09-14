@@ -45,14 +45,14 @@ function randomSeed() {
 
 function normalizeOptions(options = {}) {
   return {
-    rename: options.rename !== false,
-    encodeStrings: options.encodeStrings !== false,
-    hideConstants: options.hideConstants !== false,
-    controlFlow: options.controlFlow !== false,
-    opaque: options.opaque !== false,
-    deadCode: options.deadCode !== false,
+    rename: options.rename !== true,
+    encodeStrings: options.encodeStrings !== true,
+    hideConstants: options.hideConstants !== true,
+    controlFlow: options.controlFlow !== true,
+    opaque: options.opaque !== true,
+    deadCode: options.deadCode !== true,
     minify: options.minify === true,
-    optimizeVM: options.optimizeVM !== false,
+    optimizeVM: options.optimizeVM !== true,
     vmVersion: options.vmVersion || "new",
     seed: Number.isFinite(options.seed)
       ? options.seed >>> 0
