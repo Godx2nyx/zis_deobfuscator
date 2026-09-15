@@ -3,8 +3,8 @@ const DEFAULT_OPTIONS = {
   opaque: true,
   flatten: true,
   shuffle: true,
-  junk: true,
-  maxJunk: 2
+  junk: false,
+  maxJunk: 0
 }
 
 function mul32(a, b) {
@@ -139,14 +139,14 @@ function splitStatements(source) {
     }
 
     if (char === ")" || char === "]" || char === "}") {
-      depth--
+      depth = Math.max(0, depth - 1)
       buffer += char
       continue
     }
 
     if (
       depth === 0 &&
-      (char === ";" || char === "\n")
+      (char === ";" || char === "\n" || char === "\r")
     ) {
       const value = buffer.trim()
 
@@ -171,9 +171,43 @@ function splitStatements(source) {
 }
 
 function isControlStatement(statement) {
-  return /^(if|for|while|repeat|function|local\s+function)\b/.test(
+  return /^(if|for|while|repeat|function|local\s+function|do)\b/.test(
     statement
   )
+}
+
+function isUnsafeToFlatten(statement) {
+  const value = statement.trim()
+
+  if (!value) {
+    return true
+  }
+
+  if (/^(return|break|continue)\b/.test(value)) {
+    return true
+  }
+
+  if (
+    /^(if|for|while|repeat|function|local\s+function|do)\b/.test(
+      value
+    )
+  ) {
+    return true
+  }
+
+  if (/^else\b/.test(value)) {
+    return true
+  }
+
+  if (/^elseif\b/.test(value)) {
+    return true
+  }
+
+  if (/^end\b/.test(value)) {
+    return true
+  }
+
+  return false
 }
 
 function opaqueTrue(rng) {
@@ -215,6 +249,10 @@ function junkStatement(rng) {
 }
 
 function injectJunk(statements, rng, maxJunk) {
+  if (!maxJunk || maxJunk < 1) {
+    return [...statements]
+  }
+
   const output = []
 
   for (const statement of statements) {
@@ -227,71 +265,76 @@ function injectJunk(statements, rng, maxJunk) {
     }
 
     output.push(statement)
-
-    if (rng.next() < 0.2) {
-      output.push(junkStatement(rng))
-    }
   }
 
   return output
 }
 
 function wrapOpaque(statement, rng) {
+  if (isUnsafeToFlatten(statement)) {
+    return statement
+  }
+
   const trueCondition = opaqueTrue(rng)
   const falseCondition = opaqueFalse(rng)
-
-  const junk = junkStatement(rng)
 
   return [
     `if ${trueCondition} then`,
     `  ${statement}`,
     `else`,
     `  if ${falseCondition} then`,
-    `    ${junk}`,
     `  end`,
     `end`
   ].join("\n")
 }
 
+function canFlatten(statements) {
+  if (!Array.isArray(statements) || statements.length < 3) {
+    return false
+  }
+
+  for (const statement of statements) {
+    if (isUnsafeToFlatten(statement)) {
+      return false
+    }
+  }
+
+  return true
+}
+
 function flattenStatements(statements, rng) {
-  if (statements.length < 2) {
+  if (!canFlatten(statements)) {
     return statements.join("\n")
   }
 
   const state = randomName(rng, "__state")
-  const guard = randomName(rng, "__guard")
 
   const order = statements.map((_, index) => index)
 
-  for (let i = order.length - 1; i > 0; i--) {
-    const j = rng.int(0, i)
-    const temp = order[i]
-    order[i] = order[j]
-    order[j] = temp
+  if (rng && typeof rng.int === "function") {
+    for (let i = order.length - 1; i > 0; i--) {
+      const j = rng.int(0, i)
+
+      const temp = order[i]
+      order[i] = order[j]
+      order[j] = temp
+    }
   }
 
   const labels = order.map(
     (_, index) => index + 1
   )
 
-  const stateForOriginal = new Map()
-
-  order.forEach((originalIndex, stateIndex) => {
-    stateForOriginal.set(
-      originalIndex,
-      labels[stateIndex]
-    )
-  })
-
   const body = []
 
   body.push(`local ${state}=${labels[0]}`)
-  body.push(`local ${guard}=0`)
   body.push(`while ${state}~=0 do`)
 
   for (let stateIndex = 0; stateIndex < order.length; stateIndex++) {
     const originalIndex = order[stateIndex]
+
     const currentState = labels[stateIndex]
+
     const nextState =
       stateIndex + 1 < order.length
         ? labels[stateIndex + 1]
@@ -305,11 +348,7 @@ function flattenStatements(statements, rng) {
 
     body.push(`    ${statement}`)
 
-    if (nextState === 0) {
-      body.push(`    ${state}=0`)
-    } else {
-      body.push(`    ${state}=${nextState}`)
-    }
+    body.push(`    ${state}=${nextState}`)
 
     body.push(`  end`)
   }
@@ -325,14 +364,22 @@ function transformBlock(source, options = {}) {
     ...options
   }
 
-  const rng = createRng(opts.seed)
+  const rng = createRng(
+    Number.isFinite(opts.seed)
+      ? opts.seed
+      : DEFAULT_OPTIONS.seed
+  )
 
   const comments = maskComments(source)
   const strings = maskStrings(comments.code)
 
   let statements = splitStatements(strings.code)
 
-  if (opts.junk) {
+  if (!statements.length) {
+    return source
+  }
+
+  if (opts.junk && opts.maxJunk > 0) {
     statements = injectJunk(
       statements,
       rng,
@@ -345,6 +392,7 @@ function transformBlock(source, options = {}) {
       if (
         !statement ||
         isControlStatement(statement) ||
+        isUnsafeToFlatten(statement) ||
         statement.startsWith("__ZIS_CF_")
       ) {
         return statement
@@ -360,18 +408,39 @@ function transformBlock(source, options = {}) {
 
   let result
 
+  /*
+   * IMPORTANT:
+   * Flattening is only performed when every top-level
+   * statement is safe to move.
+   *
+   * This prevents:
+   *   print("A")
+   *   return
+   *   print("B")
+   *
+   * from becoming an invalid/reordered state machine.
+   */
   if (
     opts.flatten &&
-    statements.length >= 3 &&
-    rng.next() < 0.75
+    canFlatten(statements)
   ) {
-    result = flattenStatements(statements, rng)
+    result = flattenStatements(
+      statements,
+      rng
+    )
   } else {
     result = statements.join("\n")
   }
 
-  result = restoreStrings(result, strings.strings)
-  result = restoreComments(result, comments.comments)
+  result = restoreStrings(
+    result,
+    strings.strings
+  )
+
+  result = restoreComments(
+    result,
+    comments.comments
+  )
 
   return result
 }
@@ -381,7 +450,10 @@ function controlFlowObfuscate(source, options = {}) {
     throw new TypeError("source must be a string")
   }
 
-  return transformBlock(source, options)
+  return transformBlock(
+    source,
+    options
+  )
 }
 
 class ControlFlowObfuscator {
