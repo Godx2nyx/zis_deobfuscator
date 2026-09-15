@@ -14,20 +14,24 @@ function rngFactory(seed) {
   return {
     next() {
       state = (state + 0x6d2b79f5) >>> 0
+
       let t = state
       t = mul32(t ^ (t >>> 15), t | 1)
       t ^= t + mul32(t ^ (t >>> 7), t | 61)
+
       return ((t ^ (t >>> 14)) >>> 0) / 4294967296
     },
 
     int(min, max) {
-      return Math.floor(this.next() * (max - min + 1)) + min
+      return Math.floor(
+        this.next() * (max - min + 1)
+      ) + min
     }
   }
 }
 
 function escapeLuaString(value) {
-  return value
+  return String(value)
     .replace(/\\/g, "\\\\")
     .replace(/"/g, '\\"')
     .replace(/\n/g, "\\n")
@@ -36,13 +40,89 @@ function escapeLuaString(value) {
     .replace(/\0/g, "\\0")
 }
 
+function decodeLuaString(value) {
+  let result = ""
+
+  for (let i = 0; i < value.length; i++) {
+    const char = value[i]
+
+    if (char !== "\\") {
+      result += char
+      continue
+    }
+
+    if (i + 1 >= value.length) {
+      result += "\\"
+      continue
+    }
+
+    const next = value[++i]
+
+    if (next === "n") {
+      result += "\n"
+      continue
+    }
+
+    if (next === "r") {
+      result += "\r"
+      continue
+    }
+
+    if (next === "t") {
+      result += "\t"
+      continue
+    }
+
+    if (next === "0") {
+      result += "\0"
+      continue
+    }
+
+    if (next === "\\") {
+      result += "\\"
+      continue
+    }
+
+    if (next === '"') {
+      result += '"'
+      continue
+    }
+
+    if (next === "'") {
+      result += "'"
+      continue
+    }
+
+    if (next === "b") {
+      result += "\b"
+      continue
+    }
+
+    if (next === "f") {
+      result += "\f"
+      continue
+    }
+
+    if (next === "v") {
+      result += "\v"
+      continue
+    }
+
+    result += next
+  }
+
+  return result
+}
+
 function bytes(value) {
-  return Array.from(new TextEncoder().encode(value))
+  return Array.from(
+    new TextEncoder().encode(value)
+  )
 }
 
 function xorBytes(data, key) {
   return data.map((value, index) => {
-    const k = key[(index * 7 + index) % key.length]
+    const k = key[index % key.length]
     return (value ^ k) & 255
   })
 }
@@ -53,9 +133,7 @@ function buildRuntime(bytesValue, keys, chunks) {
 
   const parts = chunks
     .map(chunk => {
-      const start = chunk.start
-      const end = chunk.end
-      return `{${start},${end}}`
+      return `{${chunk.start},${chunk.end}}`
     })
     .join(",")
 
@@ -63,20 +141,17 @@ function buildRuntime(bytesValue, keys, chunks) {
 local _b={${byteText}}
 local _k={${keyText}}
 local _c={${parts}}
-local _x=function(_v,_i)
-local _q=_k[((_i-1)%#_k)+1]
-return bit32.bxor(_v,_q)
-end
 local _r={}
 for _i=1,#_b do
-_r[_i]=_x(_b[_i],_i)
+local _q=_k[((_i-1)%#_k)+1]
+_r[_i]=string.char(bit32.bxor(_b[_i],_q))
 end
 local _s={}
 for _n=1,#_c do
 local _p=_c[_n]
 local _t={}
 for _i=_p[1],_p[2] do
-_t[#_t+1]=string.char(_r[_i])
+_t[#_t+1]=_r[_i]
 end
 _s[#_s+1]=table.concat(_t)
 end
@@ -90,7 +165,9 @@ function buildLayeredRuntime(value, rng, layers) {
   for (let i = 0; i < layers; i++) {
     const salt = rng.int(1, 255)
 
-    const encoded = bytes(current).map(byte => byte ^ salt)
+    const encoded = bytes(current).map(
+      byte => (byte ^ salt) & 255
+    )
 
     current =
       `(function(_a)
@@ -112,7 +189,9 @@ function encodeString(value, options = {}) {
     ...options
   }
 
-  const rng = rngFactory(opts.seed >>> 0)
+  const rng = rngFactory(
+    opts.seed >>> 0
+  )
 
   if (!value.length) {
     return '""'
@@ -122,7 +201,10 @@ function encodeString(value, options = {}) {
 
   const keyCount = Math.min(
     8,
-    Math.max(3, Math.ceil(Math.sqrt(raw.length)))
+    Math.max(
+      3,
+      Math.ceil(Math.sqrt(raw.length))
+    )
   )
 
   const keys = []
@@ -131,33 +213,57 @@ function encodeString(value, options = {}) {
     keys.push(rng.int(1, 255))
   }
 
-  const encrypted = xorBytes(raw, keys)
+  const encrypted = xorBytes(
+    raw,
+    keys
+  )
 
   const chunkSize = Math.max(
     2,
-    Math.min(9, Math.ceil(encrypted.length / 4))
+    Math.min(
+      9,
+      Math.ceil(encrypted.length / 4)
+    )
   )
 
   const chunks = []
 
-  for (let i = 0; i < encrypted.length; i += chunkSize) {
+  for (
+    let i = 0;
+    i < encrypted.length;
+    i += chunkSize
+  ) {
     chunks.push({
       start: i + 1,
-      end: Math.min(i + chunkSize, encrypted.length)
+      end: Math.min(
+        i + chunkSize,
+        encrypted.length
+      )
     })
   }
 
-  let result = buildRuntime(encrypted, keys, chunks)
+  let result = buildRuntime(
+    encrypted,
+    keys,
+    chunks
+  )
 
   if (opts.layers > 0) {
-    result = buildLayeredRuntime(result, rng, opts.layers)
+    result = buildLayeredRuntime(
+      result,
+      rng,
+      opts.layers
+    )
   }
 
   return result
 }
 
 function encodeShortString(value, seed) {
-  const rng = rngFactory(seed >>> 0)
+  const rng = rngFactory(
+    seed >>> 0
+  )
+
   const data = bytes(value)
 
   if (!data.length) {
@@ -165,7 +271,10 @@ function encodeShortString(value, seed) {
   }
 
   const key = rng.int(32, 255)
-  const encoded = data.map(byte => byte ^ key)
+
+  const encoded = data.map(
+    byte => (byte ^ key) & 255
+  )
 
   return `(function(_a,_k)
 local _s={}
@@ -186,16 +295,28 @@ function processString(value, options = {}) {
     return value
   }
 
-  if (value.length <= 3) {
-    return encodeShortString(value, opts.seed)
+  if (!value.length) {
+    return '""'
   }
 
-  return encodeString(value, opts)
+  if (value.length <= 3) {
+    return encodeShortString(
+      value,
+      opts.seed
+    )
+  }
+
+  return encodeString(
+    value,
+    opts
+  )
 }
 
 function processSource(source, options = {}) {
   if (typeof source !== "string") {
-    throw new TypeError("source must be a string")
+    throw new TypeError(
+      "source must be a string"
+    )
   }
 
   const opts = {
@@ -208,27 +329,34 @@ function processSource(source, options = {}) {
   return source.replace(
     /(["'])(?:\\.|(?!\1)[\s\S])*?\1/g,
     match => {
-      const quote = match[0]
-
-      if (
-        match.length < 2 ||
-        match.startsWith("--")
-      ) {
+      if (match.length < 2) {
         return match
       }
 
-      const content = match.slice(1, -1)
+      const quote = match[0]
+      const content = match.slice(
+        1,
+        -1
+      )
 
       if (!content.length) {
         return match
       }
 
-      const result = processString(content, {
-        ...opts,
-        seed
-      })
+      const decoded = decodeLuaString(
+        content
+      )
 
-      seed = (seed + 0x45d9f3b) >>> 0
+      const result = processString(
+        decoded,
+        {
+          ...opts,
+          seed
+        }
+      )
+
+      seed =
+        (seed + 0x45d9f3b) >>> 0
 
       return result
     }
@@ -242,7 +370,9 @@ class StringEncryptor {
       ...options
     }
 
-    this.seed = this.options.seed >>> 0
+    this.seed =
+      this.options.seed >>> 0
+
     this.cache = new Map()
   }
 
@@ -251,22 +381,33 @@ class StringEncryptor {
       return this.cache.get(value)
     }
 
-    const encoded = processString(value, {
-      ...this.options,
-      seed: this.seed
-    })
+    const encoded = processString(
+      value,
+      {
+        ...this.options,
+        seed: this.seed
+      }
+    )
 
-    this.seed = (this.seed + 0x45d9f3b) >>> 0
-    this.cache.set(value, encoded)
+    this.seed =
+      (this.seed + 0x45d9f3b) >>> 0
+
+    this.cache.set(
+      value,
+      encoded
+    )
 
     return encoded
   }
 
   transform(source) {
-    return processSource(source, {
-      ...this.options,
-      seed: this.seed
-    })
+    return processSource(
+      source,
+      {
+        ...this.options,
+        seed: this.seed
+      }
+    )
   }
 
   clear() {
@@ -285,7 +426,8 @@ export {
   encodeShortString,
   processString,
   processSource,
-  escapeLuaString
+  escapeLuaString,
+  decodeLuaString
 }
 
 export default StringEncryptor
