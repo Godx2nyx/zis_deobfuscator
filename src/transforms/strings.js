@@ -58,57 +58,51 @@ function decodeLuaString(value) {
 
     const next = value[++i]
 
-    if (next === "n") {
-      result += "\n"
-      continue
-    }
+    switch (next) {
+      case "n":
+        result += "\n"
+        break
 
-    if (next === "r") {
-      result += "\r"
-      continue
-    }
+      case "r":
+        result += "\r"
+        break
 
-    if (next === "t") {
-      result += "\t"
-      continue
-    }
+      case "t":
+        result += "\t"
+        break
 
-    if (next === "0") {
-      result += "\0"
-      continue
-    }
+      case "0":
+        result += "\0"
+        break
 
-    if (next === "\\") {
-      result += "\\"
-      continue
-    }
+      case "\\":
+        result += "\\"
+        break
 
-    if (next === '"') {
-      result += '"'
-      continue
-    }
+      case '"':
+        result += '"'
+        break
 
-    if (next === "'") {
-      result += "'"
-      continue
-    }
+      case "'":
+        result += "'"
+        break
 
-    if (next === "b") {
-      result += "\b"
-      continue
-    }
+      case "b":
+        result += "\b"
+        break
 
-    if (next === "f") {
-      result += "\f"
-      continue
-    }
+      case "f":
+        result += "\f"
+        break
 
-    if (next === "v") {
-      result += "\v"
-      continue
-    }
+      case "v":
+        result += "\v"
+        break
 
-    result += next
+      default:
+        result += next
+        break
+    }
   }
 
   return result
@@ -132,9 +126,7 @@ function buildRuntime(bytesValue, keys, chunks) {
   const keyText = keys.join(",")
 
   const parts = chunks
-    .map(chunk => {
-      return `{${chunk.start},${chunk.end}}`
-    })
+    .map(chunk => `{${chunk.start},${chunk.end}}`)
     .join(",")
 
   return `(function()
@@ -248,11 +240,14 @@ function encodeString(value, options = {}) {
     chunks
   )
 
-  if (opts.layers > 0) {
+  if (
+    Number.isFinite(opts.layers) &&
+    opts.layers > 0
+  ) {
     result = buildLayeredRuntime(
       result,
       rng,
-      opts.layers
+      Math.floor(opts.layers)
     )
   }
 
@@ -333,11 +328,7 @@ function processSource(source, options = {}) {
         return match
       }
 
-      const quote = match[0]
-      const content = match.slice(
-        1,
-        -1
-      )
+      const content = match.slice(1, -1)
 
       if (!content.length) {
         return match
