@@ -37,6 +37,7 @@ const TokenType = Object.freeze({
     FloorDivide: "FloorDivide",
     Modulo: "Modulo",
     Power: "Power",
+    Concat: "Concat",
 
     Equal: "Equal",
     NotEqual: "NotEqual",
@@ -65,11 +66,29 @@ const TokenType = Object.freeze({
     Comment: "Comment"
 });
 
-const Keywords = Object.freeze({
-    and: TokenType.And,
-    or: TokenType.Or,
-    not: TokenType.Not,
+class Token {
+    constructor(
+        type,
+        value = null,
+        line = 1,
+        column = 1,
+        start = 0,
+        end = 0
+    ) {
+        this.type = type;
+        this.value = value;
+        this.line = line;
+        this.column = column;
+        this.start = start;
+        this.end = end;
+    }
 
+    toString() {
+        return `${this.type}${this.value !== null ? `(${this.value})` : ""}`;
+    }
+}
+
+const keywords = Object.freeze({
     true: TokenType.True,
     false: TokenType.False,
     nil: TokenType.Nil,
@@ -94,78 +113,30 @@ const Keywords = Object.freeze({
 
     return: TokenType.Return,
     break: TokenType.Break,
-    continue: TokenType.Continue
+    continue: TokenType.Continue,
+
+    and: TokenType.And,
+    or: TokenType.Or,
+    not: TokenType.Not
 });
 
-class Token {
-    constructor(
-        type,
-        value,
-        line = 1,
-        column = 1,
-        start = 0,
-        end = 0
-    ) {
-        this.type = type;
-        this.value = value;
-        this.line = line;
-        this.column = column;
-        this.start = start;
-        this.end = end;
-    }
-
-    clone() {
-        return new Token(
-            this.type,
-            this.value,
-            this.line,
-            this.column,
-            this.start,
-            this.end
-        );
-    }
-
-    is(type) {
-        return this.type === type;
-    }
-
-    isAny(...types) {
-        return types.includes(this.type);
-    }
-
-    toString() {
-        return `${this.type}(${JSON.stringify(this.value)})@${this.line}:${this.column}`;
-    }
-
-    toJSON() {
-        return {
-            type: this.type,
-            value: this.value,
-            line: this.line,
-            column: this.column,
-            start: this.start,
-            end: this.end
-        };
-    }
-}
-
 function keywordType(value) {
-    return Keywords[value] || TokenType.Identifier;
+    return keywords[value] || TokenType.Identifier;
 }
 
 function isKeyword(value) {
     return Object.prototype.hasOwnProperty.call(
-        Keywords,
+        keywords,
         value
     );
 }
 
 export {
-    Token,
     TokenType,
-    Keywords,
+    Token,
+    keywords,
     keywordType,
     isKeyword
 };
 
-export default Token;
+export default TokenType;
