@@ -1,256 +1,51 @@
-import { Token, TokenType, keywordType } from "./token.js";
+import {
+    TokenType,
+    Token,
+    keywordType
+} from "./token.js";
 
 class LexerError extends Error {
-    constructor(message, line, column, source) {
+    constructor(message, line, column) {
         super(`${message} at ${line}:${column}`);
         this.name = "LexerError";
         this.line = line;
         this.column = column;
-        this.source = source;
     }
 }
 
 class Lexer {
-    constructor(source, options = {}) {
-        this.source = String(source ?? "");
-        this.length = this.source.length;
-
-        this.index = 0;
+    constructor(source = "") {
+        this.source = String(source);
+        this.position = 0;
         this.line = 1;
         this.column = 1;
-
         this.tokens = [];
-
-        this.options = {
-            preserveComments: options.preserveComments === true,
-            preserveWhitespace: false,
-            allowShebang: options.allowShebang !== false
-        };
     }
 
-    tokenize() {
-        while (!this.isEOF()) {
-            this.scanToken();
-        }
-
-        this.tokens.push(
-            new Token(
-                TokenType.EOF,
-                null,
-                this.line,
-                this.column,
-                this.index,
-                this.index
-            )
-        );
-
-        return this.tokens;
+    current() {
+        return this.source[this.position] || "";
     }
 
-    scanToken() {
-        const char = this.peek();
+    peek(offset = 1) {
+        return this.source[this.position + offset] || "";
+    }
 
-        if (this.isWhitespace(char)) {
-            this.skipWhitespace();
-            return;
-        }
+    advance(count = 1) {
+        for (let i = 0; i < count; i++) {
+            const char = this.source[this.position];
 
-        if (
-            this.index === 0 &&
-            char === "#" &&
-            this.peek(1) === "!"
-        ) {
-            if (this.options.allowShebang) {
-                this.skipLineComment();
-                return;
+            if (char === "\n") {
+                this.line++;
+                this.column = 1;
+            } else {
+                this.column++;
             }
 
-            this.error("Shebang is not allowed");
+            this.position++;
         }
-
-        if (char === "-" && this.peek(1) === "-") {
-            this.scanComment();
-            return;
-        }
-
-        if (this.isIdentifierStart(char)) {
-            this.scanIdentifier();
-            return;
-        }
-
-        if (
-            this.isDigit(char) ||
-            (char === "." && this.isDigit(this.peek(1)))
-        ) {
-            this.scanNumber();
-            return;
-        }
-
-        if (
-            char === "'" ||
-            char === '"' ||
-            char === "`"
-        ) {
-            this.scanString(char);
-            return;
-        }
-
-        if (
-            char === "." &&
-            this.peek(1) === "." &&
-            this.peek(2) === "."
-        ) {
-            this.addToken(
-                TokenType.Vararg,
-                "...",
-                3
-            );
-            return;
-        }
-
-        if (
-            char === "." &&
-            this.peek(1) === "."
-        ) {
-            this.addToken(
-                TokenType.Dot,
-                "..",
-                2
-            );
-            return;
-        }
-
-        if (
-            char === ":" &&
-            this.peek(1) === ":"
-        ) {
-            this.addToken(
-                TokenType.DoubleColon,
-                "::",
-                2
-            );
-            return;
-        }
-
-        if (
-            char === "=" &&
-            this.peek(1) === "="
-        ) {
-            this.addToken(
-                TokenType.Equal,
-                "==",
-                2
-            );
-            return;
-        }
-
-        if (
-            char === "~" &&
-            this.peek(1) === "="
-        ) {
-            this.addToken(
-                TokenType.NotEqual,
-                "~=",
-                2
-            );
-            return;
-        }
-
-        if (
-            char === "<" &&
-            this.peek(1) === "="
-        ) {
-            this.addToken(
-                TokenType.LessEqual,
-                "<=",
-                2
-            );
-            return;
-        }
-
-        if (
-            char === ">" &&
-            this.peek(1) === "="
-        ) {
-            this.addToken(
-                TokenType.GreaterEqual,
-                ">=",
-                2
-            );
-            return;
-        }
-
-        if (
-            char === "/" &&
-            this.peek(1) === "/"
-        ) {
-            this.addToken(
-                TokenType.FloorDivide,
-                "//",
-                2
-            );
-            return;
-        }
-
-        const single = {
-            "+": TokenType.Plus,
-            "-": TokenType.Minus,
-            "*": TokenType.Multiply,
-            "/": TokenType.Divide,
-            "%": TokenType.Modulo,
-            "^": TokenType.Power,
-
-            "<": TokenType.Less,
-            ">": TokenType.Greater,
-            "=": TokenType.Assign,
-
-            "(": TokenType.LeftParen,
-            ")": TokenType.RightParen,
-
-            "{": TokenType.LeftBrace,
-            "}": TokenType.RightBrace,
-
-            "[": TokenType.LeftBracket,
-            "]": TokenType.RightBracket,
-
-            ",": TokenType.Comma,
-            ".": TokenType.Dot,
-            ":": TokenType.Colon,
-            ";": TokenType.Semicolon
-        };
-
-        if (single[char] !== undefined) {
-            this.addToken(
-                single[char],
-                char,
-                1
-            );
-            return;
-        }
-
-        this.error(
-            `Unexpected character ${JSON.stringify(char)}`
-        );
     }
 
-    scanIdentifier() {
-        const start = this.index;
-        const line = this.line;
-        const column = this.column;
-
-        this.advance();
-
-        while (this.isIdentifierPart(this.peek())) {
-            this.advance();
-        }
-
-        const value = this.source.slice(
-            start,
-            this.index
-        );
-
-        const type = keywordType(value);
-
+    addToken(type, value = null, length = 1, line = this.line, column = this.column, start = this.position) {
         this.tokens.push(
             new Token(
                 type,
@@ -258,114 +53,205 @@ class Lexer {
                 line,
                 column,
                 start,
-                this.index
+                start + length
+            )
+        );
+
+        this.advance(length);
+    }
+
+    error(message) {
+        throw new LexerError(
+            message,
+            this.line,
+            this.column
+        );
+    }
+
+    isWhitespace(char) {
+        return (
+            char === " " ||
+            char === "\t" ||
+            char === "\r" ||
+            char === "\n" ||
+            char === "\f"
+        );
+    }
+
+    isDigit(char) {
+        return char >= "0" && char <= "9";
+    }
+
+    isHexDigit(char) {
+        return /^[0-9a-fA-F]$/.test(char);
+    }
+
+    isIdentifierStart(char) {
+        return (
+            !!char &&
+            (
+                (char >= "a" && char <= "z") ||
+                (char >= "A" && char <= "Z") ||
+                char === "_"
             )
         );
     }
 
-    scanNumber() {
-        const start = this.index;
+    isIdentifierPart(char) {
+        return (
+            this.isIdentifierStart(char) ||
+            this.isDigit(char)
+        );
+    }
+
+    readIdentifier() {
+        const start = this.position;
         const line = this.line;
         const column = this.column;
 
-        let value = "";
+        while (
+            this.isIdentifierPart(
+                this.current()
+            )
+        ) {
+            this.advance();
+        }
+
+        const value = this.source.slice(
+            start,
+            this.position
+        );
+
+        this.tokens.push(
+            new Token(
+                keywordType(value),
+                value,
+                line,
+                column,
+                start,
+                this.position
+            )
+        );
+    }
+
+    readNumber() {
+        const start = this.position;
+        const line = this.line;
+        const column = this.column;
 
         if (
-            this.peek() === "0" &&
-            this.peek(1).toLowerCase() === "x"
+            this.current() === "0" &&
+            (
+                this.peek(1) === "x" ||
+                this.peek(1) === "X"
+            )
         ) {
-            value += this.advance();
-            value += this.advance();
+            this.advance(2);
 
-            if (!this.isHexDigit(this.peek())) {
+            while (
+                this.isHexDigit(
+                    this.current()
+                )
+            ) {
+                this.advance();
+            }
+
+            const raw = this.source.slice(
+                start,
+                this.position
+            );
+
+            if (raw.length <= 2) {
                 this.error("Invalid hexadecimal number");
             }
 
-            while (this.isHexDigit(this.peek())) {
-                value += this.advance();
-            }
+            this.tokens.push(
+                new Token(
+                    TokenType.Number,
+                    Number.parseInt(raw, 16),
+                    line,
+                    column,
+                    start,
+                    this.position
+                )
+            );
 
-            if (this.peek() === ".") {
-                value += this.advance();
+            return;
+        }
 
-                while (this.isHexDigit(this.peek())) {
-                    value += this.advance();
-                }
-            }
+        while (
+            this.isDigit(
+                this.current()
+            )
+        ) {
+            this.advance();
+        }
 
-            if (
-                this.peek().toLowerCase() === "p"
+        if (
+            this.current() === "." &&
+            this.peek(1) !== "." &&
+            this.isDigit(this.peek(1))
+        ) {
+            this.advance();
+
+            while (
+                this.isDigit(
+                    this.current()
+                )
             ) {
-                value += this.advance();
-
-                if (
-                    this.peek() === "+" ||
-                    this.peek() === "-"
-                ) {
-                    value += this.advance();
-                }
-
-                if (!this.isDigit(this.peek())) {
-                    this.error(
-                        "Invalid hexadecimal exponent"
-                    );
-                }
-
-                while (this.isDigit(this.peek())) {
-                    value += this.advance();
-                }
-            }
-        } else {
-            let hasDot = false;
-
-            if (this.peek() === ".") {
-                hasDot = true;
-                value += this.advance();
-            }
-
-            while (this.isDigit(this.peek())) {
-                value += this.advance();
-            }
-
-            if (
-                !hasDot &&
-                this.peek() === "." &&
-                this.peek(1) !== "."
-            ) {
-                hasDot = true;
-                value += this.advance();
-
-                while (this.isDigit(this.peek())) {
-                    value += this.advance();
-                }
-            }
-
-            if (
-                this.peek().toLowerCase() === "e"
-            ) {
-                value += this.advance();
-
-                if (
-                    this.peek() === "+" ||
-                    this.peek() === "-"
-                ) {
-                    value += this.advance();
-                }
-
-                if (!this.isDigit(this.peek())) {
-                    this.error(
-                        "Invalid numeric exponent"
-                    );
-                }
-
-                while (this.isDigit(this.peek())) {
-                    value += this.advance();
-                }
+                this.advance();
             }
         }
 
-        if (this.isIdentifierStart(this.peek())) {
-            this.error("Invalid number literal");
+        if (
+            this.current() === "e" ||
+            this.current() === "E"
+        ) {
+            const beforeExponent = this.position;
+
+            this.advance();
+
+            if (
+                this.current() === "+" ||
+                this.current() === "-"
+            ) {
+                this.advance();
+            }
+
+            if (
+                !this.isDigit(
+                    this.current()
+                )
+            ) {
+                this.position = beforeExponent;
+                this.column -=
+                    this.position - beforeExponent;
+
+                this.error(
+                    "Invalid number exponent"
+                );
+            }
+
+            while (
+                this.isDigit(
+                    this.current()
+                )
+            ) {
+                this.advance();
+            }
+        }
+
+        const raw = this.source.slice(
+            start,
+            this.position
+        );
+
+        const value = Number(raw);
+
+        if (Number.isNaN(value)) {
+            this.error(
+                `Invalid number ${raw}`
+            );
         }
 
         this.tokens.push(
@@ -375,13 +261,13 @@ class Lexer {
                 line,
                 column,
                 start,
-                this.index
+                this.position
             )
         );
     }
 
-    scanString(quote) {
-        const start = this.index;
+    readString(quote) {
+        const start = this.position;
         const line = this.line;
         const column = this.column;
 
@@ -389,8 +275,8 @@ class Lexer {
 
         let value = "";
 
-        while (!this.isEOF()) {
-            const char = this.peek();
+        while (this.position < this.source.length) {
+            const char = this.current();
 
             if (char === quote) {
                 this.advance();
@@ -402,7 +288,7 @@ class Lexer {
                         line,
                         column,
                         start,
-                        this.index
+                        this.position
                     )
                 );
 
@@ -412,431 +298,475 @@ class Lexer {
             if (char === "\\") {
                 this.advance();
 
-                if (this.isEOF()) {
-                    this.error("Unterminated string");
+                const escaped = this.current();
+
+                if (escaped === "") {
+                    this.error(
+                        "Unterminated string"
+                    );
                 }
 
-                value += this.readEscape();
+                const escapes = {
+                    n: "\n",
+                    r: "\r",
+                    t: "\t",
+                    b: "\b",
+                    f: "\f",
+                    v: "\v",
+                    a: "\x07",
+                    "\\": "\\",
+                    "\"": "\"",
+                    "'": "'"
+                };
+
+                if (
+                    Object.prototype.hasOwnProperty.call(
+                        escapes,
+                        escaped
+                    )
+                ) {
+                    value += escapes[escaped];
+                    this.advance();
+                    continue;
+                }
+
+                if (escaped === "\n") {
+                    value += "\n";
+                    this.advance();
+                    continue;
+                }
+
+                value += escaped;
+                this.advance();
                 continue;
             }
 
-            if (
-                char === "\n" ||
-                char === "\r"
-            ) {
-                this.error("Unterminated string");
-            }
-
-            value += this.advance();
+            value += char;
+            this.advance();
         }
 
         this.error("Unterminated string");
     }
 
-    readEscape() {
-        const char = this.advance();
+    readLongString() {
+        const start = this.position;
+        const line = this.line;
+        const column = this.column;
 
-        const escapes = {
-            a: "\x07",
-            b: "\b",
-            f: "\f",
-            n: "\n",
-            r: "\r",
-            t: "\t",
-            v: "\v",
-            "\\": "\\",
-            "\"": "\"",
-            "'": "'",
-            "`": "`"
-        };
+        let level = 0;
+        let index = this.position + 1;
+
+        while (
+            this.source[index] === "="
+        ) {
+            level++;
+            index++;
+        }
 
         if (
-            Object.prototype.hasOwnProperty.call(
-                escapes,
-                char
-            )
+            this.source[index] !== "["
         ) {
-            return escapes[char];
+            return false;
         }
 
-        if (char === "\n") {
-            return "\n";
-        }
+        const openerLength =
+            2 + level;
 
-        if (char === "\r") {
-            if (this.peek() === "\n") {
-                this.advance();
-            }
+        this.advance(openerLength);
 
-            return "\n";
-        }
+        const closing =
+            "]" +
+            "=".repeat(level) +
+            "]";
 
-        if (char === "x") {
-            const a = this.peek();
-            const b = this.peek(1);
+        const contentStart =
+            this.position;
 
-            if (
-                !this.isHexDigit(a) ||
-                !this.isHexDigit(b)
-            ) {
-                this.error(
-                    "Invalid hexadecimal escape"
-                );
-            }
+        const endIndex =
+            this.source.indexOf(
+                closing,
+                this.position
+            );
 
-            this.advance();
-            this.advance();
-
-            return String.fromCharCode(
-                parseInt(a + b, 16)
+        if (endIndex === -1) {
+            this.error(
+                "Unterminated long string"
             );
         }
 
-        if (
-            char === "u" &&
-            this.peek() === "{"
-        ) {
-            this.advance();
-
-            let hex = "";
-
-            while (
-                !this.isEOF() &&
-                this.peek() !== "}"
-            ) {
-                if (!this.isHexDigit(this.peek())) {
-                    this.error(
-                        "Invalid Unicode escape"
-                    );
-                }
-
-                hex += this.advance();
-
-                if (hex.length > 6) {
-                    this.error(
-                        "Unicode escape is too long"
-                    );
-                }
-            }
-
-            if (this.peek() !== "}") {
-                this.error(
-                    "Unterminated Unicode escape"
-                );
-            }
-
-            this.advance();
-
-            const codePoint = parseInt(hex, 16);
-
-            if (
-                !Number.isFinite(codePoint) ||
-                codePoint > 0x10ffff
-            ) {
-                this.error(
-                    "Invalid Unicode code point"
-                );
-            }
-
-            return String.fromCodePoint(codePoint);
-        }
-
-        if (this.isDigit(char)) {
-            let digits = char;
-
-            for (
-                let i = 0;
-                i < 2 &&
-                this.isDigit(this.peek());
-                i++
-            ) {
-                digits += this.advance();
-            }
-
-            const code = Number(digits);
-
-            if (code > 255) {
-                this.error(
-                    "Decimal escape is out of range"
-                );
-            }
-
-            return String.fromCharCode(code);
-        }
-
-        return char;
-    }
-
-    scanComment() {
-        const start = this.index;
-        const line = this.line;
-        const column = this.column;
-
-        this.advance();
-        this.advance();
-
-        if (this.peek() === "[") {
-            const long = this.tryReadLongBracket();
-
-            if (long !== null) {
-                if (this.options.preserveComments) {
-                    this.tokens.push(
-                        new Token(
-                            TokenType.Comment,
-                            long,
-                            line,
-                            column,
-                            start,
-                            this.index
-                        )
-                    );
-                }
-
-                return;
-            }
-        }
-
-        this.skipLineComment();
-    }
-
-    skipLineComment() {
-        while (!this.isEOF()) {
-            const char = this.peek();
-
-            if (
-                char === "\n" ||
-                char === "\r"
-            ) {
-                break;
-            }
-
-            this.advance();
-        }
-    }
-
-    tryReadLongBracket() {
-        const savedIndex = this.index;
-        const savedLine = this.line;
-        const savedColumn = this.column;
-
-        if (this.peek() !== "[") {
-            return null;
-        }
-
-        this.advance();
-
-        let level = 0;
-
-        while (this.peek() === "=") {
-            level++;
-            this.advance();
-        }
-
-        if (this.peek() !== "[") {
-            this.index = savedIndex;
-            this.line = savedLine;
-            this.column = savedColumn;
-            return null;
-        }
-
-        this.advance();
-
-        if (this.peek() === "\r") {
-            this.advance();
-
-            if (this.peek() === "\n") {
-                this.advance();
-            }
-        } else if (this.peek() === "\n") {
-            this.advance();
-        }
-
-        const contentStart = this.index;
-
-        while (!this.isEOF()) {
-            if (this.peek() === "]") {
-                let closeIndex = this.index + 1;
-                let equals = 0;
-
-                while (
-                    equals < level &&
-                    this.source[closeIndex] === "="
-                ) {
-                    equals++;
-                    closeIndex++;
-                }
-
-                if (
-                    equals === level &&
-                    this.source[closeIndex] === "]"
-                ) {
-                    const content = this.source.slice(
-                        contentStart,
-                        this.index
-                    );
-
-                    this.advance();
-
-                    for (
-                        let i = 0;
-                        i < level;
-                        i++
-                    ) {
-                        this.advance();
-                    }
-
-                    this.advance();
-
-                    return content;
-                }
-            }
-
-            this.advance();
-        }
-
-        this.error("Unterminated long bracket");
-    }
-
-    skipWhitespace() {
         while (
-            !this.isEOF() &&
-            this.isWhitespace(this.peek())
+            this.position < endIndex
         ) {
             this.advance();
         }
-    }
 
-    addToken(type, value, length) {
-        const start = this.index;
-        const line = this.line;
-        const column = this.column;
+        const value =
+            this.source.slice(
+                contentStart,
+                endIndex
+            );
 
-        for (
-            let i = 0;
-            i < length;
-            i++
-        ) {
-            this.advance();
-        }
+        this.advance(
+            closing.length
+        );
 
         this.tokens.push(
             new Token(
-                type,
+                TokenType.String,
                 value,
                 line,
                 column,
                 start,
-                this.index
+                this.position
             )
         );
+
+        return true;
     }
 
-    advance() {
-        if (this.isEOF()) {
-            return "";
+    readComment() {
+        if (
+            this.current() !== "-" ||
+            this.peek(1) !== "-"
+        ) {
+            return false;
         }
-
-        const char = this.source[this.index++];
-
-        if (char === "\r") {
-            if (this.source[this.index] === "\n") {
-                this.index++;
-            }
-
-            this.line++;
-            this.column = 1;
-
-            return "\n";
-        }
-
-        if (char === "\n") {
-            this.line++;
-            this.column = 1;
-
-            return char;
-        }
-
-        this.column++;
-
-        return char;
-    }
-
-    peek(offset = 0) {
-        const position = this.index + offset;
 
         if (
-            position < 0 ||
-            position >= this.length
+            this.peek(2) === "["
         ) {
-            return "\0";
+            const savedPosition =
+                this.position;
+
+            const savedLine =
+                this.line;
+
+            const savedColumn =
+                this.column;
+
+            this.advance(2);
+
+            let level = 0;
+            let index = this.position + 1;
+
+            while (
+                this.source[index] === "="
+            ) {
+                level++;
+                index++;
+            }
+
+            if (
+                this.source[index] === "["
+            ) {
+                this.position = savedPosition;
+                this.line = savedLine;
+                this.column = savedColumn;
+
+                this.advance(2);
+
+                const openerLength =
+                    1 + level + 1;
+
+                this.advance(
+                    openerLength
+                );
+
+                const closing =
+                    "]" +
+                    "=".repeat(level) +
+                    "]";
+
+                const endIndex =
+                    this.source.indexOf(
+                        closing,
+                        this.position
+                    );
+
+                if (endIndex === -1) {
+                    this.error(
+                        "Unterminated long comment"
+                    );
+                }
+
+                while (
+                    this.position < endIndex
+                ) {
+                    this.advance();
+                }
+
+                this.advance(
+                    closing.length
+                );
+
+                return true;
+            }
+
+            this.position = savedPosition;
+            this.line = savedLine;
+            this.column = savedColumn;
         }
 
-        return this.source[position];
+        this.advance(2);
+
+        while (
+            this.current() &&
+            this.current() !== "\n"
+        ) {
+            this.advance();
+        }
+
+        return true;
     }
 
-    isEOF() {
-        return this.index >= this.length;
-    }
+    tokenize() {
+        while (
+            this.position <
+            this.source.length
+        ) {
+            const char = this.current();
 
-    isWhitespace(char) {
-        return (
-            char === " " ||
-            char === "\t" ||
-            char === "\n" ||
-            char === "\r" ||
-            char === "\f" ||
-            char === "\v"
+            if (this.isWhitespace(char)) {
+                this.advance();
+                continue;
+            }
+
+            if (this.readComment()) {
+                continue;
+            }
+
+            if (
+                char === "[" &&
+                (
+                    this.peek(1) === "[" ||
+                    this.peek(1) === "="
+                )
+            ) {
+                if (this.readLongString()) {
+                    continue;
+                }
+            }
+
+            if (
+                char === "\"" ||
+                char === "'"
+            ) {
+                this.readString(char);
+                continue;
+            }
+
+            if (
+                this.isIdentifierStart(char)
+            ) {
+                this.readIdentifier();
+                continue;
+            }
+
+            if (
+                this.isDigit(char) ||
+                (
+                    char === "." &&
+                    this.isDigit(this.peek(1))
+                )
+            ) {
+                this.readNumber();
+                continue;
+            }
+
+            const line = this.line;
+            const column = this.column;
+            const start = this.position;
+
+            if (
+                char === "." &&
+                this.peek(1) === "." &&
+                this.peek(2) === "."
+            ) {
+                this.addToken(
+                    TokenType.Vararg,
+                    "...",
+                    3,
+                    line,
+                    column,
+                    start
+                );
+                continue;
+            }
+
+            if (
+                char === "." &&
+                this.peek(1) === "."
+            ) {
+                this.addToken(
+                    TokenType.Concat,
+                    "..",
+                    2,
+                    line,
+                    column,
+                    start
+                );
+                continue;
+            }
+
+            if (
+                char === ":" &&
+                this.peek(1) === ":"
+            ) {
+                this.addToken(
+                    TokenType.DoubleColon,
+                    "::",
+                    2,
+                    line,
+                    column,
+                    start
+                );
+                continue;
+            }
+
+            if (
+                char === "=" &&
+                this.peek(1) === "="
+            ) {
+                this.addToken(
+                    TokenType.Equal,
+                    "==",
+                    2,
+                    line,
+                    column,
+                    start
+                );
+                continue;
+            }
+
+            if (
+                char === "~" &&
+                this.peek(1) === "="
+            ) {
+                this.addToken(
+                    TokenType.NotEqual,
+                    "~=",
+                    2,
+                    line,
+                    column,
+                    start
+                );
+                continue;
+            }
+
+            if (
+                char === "<" &&
+                this.peek(1) === "="
+            ) {
+                this.addToken(
+                    TokenType.LessEqual,
+                    "<=",
+                    2,
+                    line,
+                    column,
+                    start
+                );
+                continue;
+            }
+
+            if (
+                char === ">" &&
+                this.peek(1) === "="
+            ) {
+                this.addToken(
+                    TokenType.GreaterEqual,
+                    ">=",
+                    2,
+                    line,
+                    column,
+                    start
+                );
+                continue;
+            }
+
+            if (
+                char === "/" &&
+                this.peek(1) === "/"
+            ) {
+                this.addToken(
+                    TokenType.FloorDivide,
+                    "//",
+                    2,
+                    line,
+                    column,
+                    start
+                );
+                continue;
+            }
+
+            const single = {
+                "+": TokenType.Plus,
+                "-": TokenType.Minus,
+                "*": TokenType.Multiply,
+                "/": TokenType.Divide,
+                "%": TokenType.Modulo,
+                "^": TokenType.Power,
+
+                "=": TokenType.Assign,
+
+                "<": TokenType.Less,
+                ">": TokenType.Greater,
+
+                "(": TokenType.LeftParen,
+                ")": TokenType.RightParen,
+
+                "{": TokenType.LeftBrace,
+                "}": TokenType.RightBrace,
+
+                "[": TokenType.LeftBracket,
+                "]": TokenType.RightBracket,
+
+                ",": TokenType.Comma,
+                ".": TokenType.Dot,
+                ":": TokenType.Colon,
+                ";": TokenType.Semicolon
+            };
+
+            const type = single[char];
+
+            if (type) {
+                this.addToken(
+                    type,
+                    char,
+                    1,
+                    line,
+                    column,
+                    start
+                );
+                continue;
+            }
+
+            this.error(
+                `Unexpected character '${char}'`
+            );
+        }
+
+        this.tokens.push(
+            new Token(
+                TokenType.EOF,
+                null,
+                this.line,
+                this.column,
+                this.position,
+                this.position
+            )
         );
+
+        return this.tokens;
     }
 
-    isDigit(char) {
-        return (
-            char >= "0" &&
-            char <= "9"
-        );
+    tokenizeAll() {
+        return this.tokenize();
     }
-
-    isHexDigit(char) {
-        return (
-            (char >= "0" && char <= "9") ||
-            (char >= "a" && char <= "f") ||
-            (char >= "A" && char <= "F")
-        );
-    }
-
-    isIdentifierStart(char) {
-        return (
-            (char >= "a" && char <= "z") ||
-            (char >= "A" && char <= "Z") ||
-            char === "_"
-        );
-    }
-
-    isIdentifierPart(char) {
-        return (
-            this.isIdentifierStart(char) ||
-            this.isDigit(char)
-        );
-    }
-
-    error(message) {
-        throw new LexerError(
-            message,
-            this.line,
-            this.column,
-            this.source
-        );
-    }
-}
-
-function tokenize(source, options = {}) {
-    return new Lexer(source, options).tokenize();
 }
 
 export {
     Lexer,
-    LexerError,
-    tokenize
+    LexerError
 };
 
 export default Lexer;
