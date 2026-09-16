@@ -146,12 +146,17 @@ const setTable = (table, key, value) => {
 
 const defaultGlobals = () => ({
   print: (...args) => console.log(...args),
+
   warn: (...args) => console.warn(...args),
-  tostring: value => String(value),
+
+  tostring: value =>
+    value == null ? "nil" : String(value),
+
   tonumber: value => {
     const n = Number(value)
     return Number.isNaN(n) ? null : n
   },
+
   type: value => {
     if (value === null || value === undefined) return "nil"
     if (Array.isArray(value)) return "table"
@@ -161,14 +166,17 @@ const defaultGlobals = () => ({
     if (typeof value === "function") return "function"
     return "table"
   },
+
   pairs: value => {
     if (value == null) return []
     return Object.entries(value)
   },
+
   ipairs: value => {
     if (!Array.isArray(value)) return []
     return value.map((v, i) => [i + 1, v])
   },
+
   math: {
     abs: Math.abs,
     floor: Math.floor,
@@ -179,24 +187,40 @@ const defaultGlobals = () => ({
     random: Math.random,
     pow: Math.pow
   },
+
   string: {
     len: value => String(value).length,
-    lower: value => String(value).toLowerCase(),
-    upper: value => String(value).toUpperCase(),
+
+    lower: value =>
+      String(value).toLowerCase(),
+
+    upper: value =>
+      String(value).toUpperCase(),
+
     sub: (value, start, finish) =>
       String(value).substring(
         Number(start) - 1,
-        finish == null ? undefined : Number(finish)
+        finish == null
+          ? undefined
+          : Number(finish)
       )
   },
+
   table: {
     insert: (table, value) => {
       table.push(value)
-      return table
+      return value
     },
+
     remove: (table, index) => {
-      if (index == null) return table.pop()
-      return table.splice(Number(index) - 1, 1)[0]
+      if (index == null) {
+        return table.pop()
+      }
+
+      return table.splice(
+        Number(index) - 1,
+        1
+      )[0]
     }
   }
 })
@@ -204,6 +228,7 @@ const defaultGlobals = () => ({
 class VMError extends Error {
   constructor(message, vm) {
     super(message)
+
     this.name = "VMError"
     this.ip = vm?.ip ?? -1
     this.chunkName = vm?.chunkName ?? "Zisuay"
@@ -214,10 +239,15 @@ class VMError extends Error {
 export class VMFrame {
   constructor(proto, args = [], parent = null) {
     this.proto = proto || {}
-    this.code = Array.isArray(this.proto.code) ? this.proto.code : []
+
+    this.code = Array.isArray(this.proto.code)
+      ? this.proto.code
+      : []
+
     this.constants = Array.isArray(this.proto.constants)
       ? this.proto.constants
       : []
+
     this.registers = new Array(
       this.proto.registerCount ||
       this.proto.maxRegisters ||
@@ -225,7 +255,12 @@ export class VMFrame {
     ).fill(undefined)
 
     this.locals = Object.create(null)
-    this.upvalues = parent ? parent.upvalues : Object.create(null)
+
+    this.upvalues =
+      parent
+        ? parent.upvalues
+        : Object.create(null)
+
     this.parent = parent
     this.args = args
     this.varargs = args.slice()
@@ -238,14 +273,20 @@ export class VMFrame {
 
 export class ZisuayVM {
   constructor(options = {}) {
-    this.chunkName = options.chunkName || "Zisuay"
-    this.watermark = options.watermark || "zis_obfuscator"
+    this.chunkName =
+      options.chunkName || "Zisuay"
+
+    this.watermark =
+      options.watermark || "zis_obfuscator"
+
     this.globals = {
       ...defaultGlobals(),
       ...(options.globals || {})
     }
 
-    this.maxSteps = options.maxSteps || 5_000_000
+    this.maxSteps =
+      options.maxSteps || 5_000_000
+
     this.trace = !!options.trace
     this.traceLog = []
     this.callStack = []
@@ -287,7 +328,7 @@ export class ZisuayVM {
       return frame.locals[name]
     }
 
-    let current = frame
+    let current = frame.parent
 
     while (current) {
       if (hasOwn(current.locals, name)) {
@@ -334,7 +375,8 @@ export class ZisuayVM {
       target &&
       typeof target.call === "function"
     ) {
-      return (...args) => target.call(...args)
+      return (...args) =>
+        target.call(...args)
     }
 
     throw new VMError(
@@ -358,9 +400,12 @@ export class ZisuayVM {
         target.frame
       )
 
-      child.upvalues = target.upvalues || target.frame.upvalues
+      child.upvalues =
+        target.upvalues ||
+        target.frame.upvalues
 
-      const result = this.executeFrame(child)
+      const result =
+        this.executeFrame(child)
 
       if (result.length <= 1) {
         return result[0]
@@ -369,7 +414,10 @@ export class ZisuayVM {
       return result
     }
 
-    if (target && typeof target.call === "function") {
+    if (
+      target &&
+      typeof target.call === "function"
+    ) {
       return target.call(...args)
     }
 
@@ -382,16 +430,30 @@ export class ZisuayVM {
   createClosure(proto, frame) {
     return {
       __vmClosure: true,
-      proto,
-      frame,
-      upvalues: frame.upvalues,
-      watermark: this.watermark,
-      chunkName: this.chunkName,
-      call: (...args) => {
-        const child = new VMFrame(proto, args, frame)
-        child.upvalues = frame.upvalues
 
-        const result = this.executeFrame(child)
+      proto,
+
+      frame,
+
+      upvalues: frame.upvalues,
+
+      watermark: this.watermark,
+
+      chunkName: this.chunkName,
+
+      call: (...args) => {
+        const child =
+          new VMFrame(
+            proto,
+            args,
+            frame
+          )
+
+        child.upvalues =
+          frame.upvalues
+
+        const result =
+          this.executeFrame(child)
 
         if (result.length <= 1) {
           return result[0]
@@ -400,6 +462,68 @@ export class ZisuayVM {
         return result
       }
     }
+  }
+
+  resolveTableKey(frame, instruction, extra, C) {
+    if (
+      instruction.key !== undefined
+    ) {
+      return instruction.key
+    }
+
+    if (
+      extra?.key !== undefined
+    ) {
+      return extra.key
+    }
+
+    if (
+      extra?.property !== undefined
+    ) {
+      return extra.property
+    }
+
+    if (
+      extra?.propertyName !== undefined
+    ) {
+      return extra.propertyName
+    }
+
+    if (
+      extra?.constant !== undefined
+    ) {
+      return this.constant(
+        frame,
+        extra.constant
+      )
+    }
+
+    if (
+      extra?.keyConstant !== undefined
+    ) {
+      return this.constant(
+        frame,
+        extra.keyConstant
+      )
+    }
+
+    const constantValue =
+      this.constant(frame, C)
+
+    const registerValue =
+      this.register(frame, C)
+
+    if (
+      typeof constantValue === "string" &&
+      (
+        registerValue === undefined ||
+        typeof registerValue !== "string"
+      )
+    ) {
+      return constantValue
+    }
+
+    return registerValue
   }
 
   executeBinary(opcode, a, b) {
@@ -481,7 +605,9 @@ export class ZisuayVM {
         this.currentFrame = frame
         this.ip = frame.ip
 
-        const instruction = frame.code[frame.ip]
+        const instruction =
+          frame.code[frame.ip]
+
         frame.ip++
 
         if (
@@ -496,14 +622,37 @@ export class ZisuayVM {
             ? instruction.opcode
             : instruction.op
 
-        const A = instruction.a ?? instruction.A ?? 0
-        const B = instruction.b ?? instruction.B ?? 0
-        const C = instruction.c ?? instruction.C ?? 0
-        const D = instruction.d ?? instruction.D ?? 0
+        const A =
+          instruction.a ??
+          instruction.A ??
+          0
 
-        const extra = instruction.extra || instruction.data
+        const B =
+          instruction.b ??
+          instruction.B ??
+          0
 
-        this.log(opcodeName(op), A, B, C, D)
+        const C =
+          instruction.c ??
+          instruction.C ??
+          0
+
+        const D =
+          instruction.d ??
+          instruction.D ??
+          0
+
+        const extra =
+          instruction.extra ||
+          instruction.data
+
+        this.log(
+          opcodeName(op),
+          A,
+          B,
+          C,
+          D
+        )
 
         switch (op) {
           case OPCODE.NOP:
@@ -527,6 +676,7 @@ export class ZisuayVM {
             if (C) {
               frame.ip++
             }
+
             break
 
           case OPCODE.LOADNIL:
@@ -535,8 +685,13 @@ export class ZisuayVM {
               i <= (B || A);
               i++
             ) {
-              this.setRegister(frame, i, undefined)
+              this.setRegister(
+                frame,
+                i,
+                undefined
+              )
             }
+
             break
 
           case OPCODE.MOVE:
@@ -556,8 +711,12 @@ export class ZisuayVM {
             this.setRegister(
               frame,
               A,
-              this.resolveName(frame, name)
+              this.resolveName(
+                frame,
+                name
+              )
             )
+
             break
           }
 
@@ -573,7 +732,11 @@ export class ZisuayVM {
               B
 
             frame.locals[name] =
-              this.register(frame, source)
+              this.register(
+                frame,
+                source
+              )
+
             break
           }
 
@@ -588,6 +751,7 @@ export class ZisuayVM {
               A,
               this.globals[name]
             )
+
             break
           }
 
@@ -603,7 +767,11 @@ export class ZisuayVM {
               B
 
             this.globals[name] =
-              this.register(frame, source)
+              this.register(
+                frame,
+                source
+              )
+
             break
           }
 
@@ -618,6 +786,7 @@ export class ZisuayVM {
               A,
               frame.upvalues[name]
             )
+
             break
           }
 
@@ -633,12 +802,20 @@ export class ZisuayVM {
               B
 
             frame.upvalues[name] =
-              this.register(frame, source)
+              this.register(
+                frame,
+                source
+              )
+
             break
           }
 
           case OPCODE.NEWTABLE:
-            this.setRegister(frame, A, {})
+            this.setRegister(
+              frame,
+              A,
+              {}
+            )
             break
 
           case OPCODE.GETTABLE: {
@@ -646,15 +823,22 @@ export class ZisuayVM {
               this.register(frame, B)
 
             const key =
-              instruction.key !== undefined
-                ? instruction.key
-                : this.register(frame, C)
+              this.resolveTableKey(
+                frame,
+                instruction,
+                extra,
+                C
+              )
 
             this.setRegister(
               frame,
               A,
-              getTable(table, key)
+              getTable(
+                table,
+                key
+              )
             )
+
             break
           }
 
@@ -662,17 +846,47 @@ export class ZisuayVM {
             const table =
               this.register(frame, A)
 
-            const key =
-              instruction.key !== undefined
-                ? instruction.key
-                : this.register(frame, B)
+            let key
+
+            if (
+              instruction.key !== undefined ||
+              extra?.key !== undefined ||
+              extra?.property !== undefined ||
+              extra?.propertyName !== undefined ||
+              extra?.constant !== undefined ||
+              extra?.keyConstant !== undefined
+            ) {
+              key =
+                this.resolveTableKey(
+                  frame,
+                  instruction,
+                  extra,
+                  B
+                )
+            } else {
+              key =
+                this.register(
+                  frame,
+                  B
+                )
+            }
 
             const value =
               instruction.value !== undefined
                 ? instruction.value
-                : this.register(frame, C)
+                : extra?.value !== undefined
+                  ? extra.value
+                  : this.register(
+                      frame,
+                      C
+                    )
 
-            setTable(table, key, value)
+            setTable(
+              table,
+              key,
+              value
+            )
+
             break
           }
 
@@ -695,18 +909,29 @@ export class ZisuayVM {
             const left =
               instruction.left !== undefined
                 ? instruction.left
-                : this.register(frame, B)
+                : this.register(
+                    frame,
+                    B
+                  )
 
             const right =
               instruction.right !== undefined
                 ? instruction.right
-                : this.register(frame, C)
+                : this.register(
+                    frame,
+                    C
+                  )
 
             this.setRegister(
               frame,
               A,
-              this.executeBinary(op, left, right)
+              this.executeBinary(
+                op,
+                left,
+                right
+              )
             )
+
             break
           }
 
@@ -714,7 +939,12 @@ export class ZisuayVM {
             this.setRegister(
               frame,
               A,
-              !truthy(this.register(frame, B))
+              !truthy(
+                this.register(
+                  frame,
+                  B
+                )
+              )
             )
             break
 
@@ -722,7 +952,12 @@ export class ZisuayVM {
             this.setRegister(
               frame,
               A,
-              -Number(this.register(frame, B))
+              -Number(
+                this.register(
+                  frame,
+                  B
+                )
+              )
             )
             break
 
@@ -730,7 +965,12 @@ export class ZisuayVM {
             this.setRegister(
               frame,
               A,
-              luaLen(this.register(frame, B))
+              luaLen(
+                this.register(
+                  frame,
+                  B
+                )
+              )
             )
             break
 
@@ -738,58 +978,102 @@ export class ZisuayVM {
             const target =
               instruction.target !== undefined
                 ? instruction.target
-                : this.register(frame, B)
+                : this.register(
+                    frame,
+                    B
+                  )
 
             let args
 
-            if (Array.isArray(instruction.args)) {
-              args = instruction.args.map(
-                index => this.register(frame, index)
+            if (
+              Array.isArray(
+                instruction.args
               )
-            } else if (Array.isArray(extra?.args)) {
-              args = extra.args.map(value => {
-                if (
-                  typeof value === "number" &&
-                  value >= 0 &&
-                  value < frame.registers.length
-                ) {
-                  return this.register(frame, value)
-                }
+            ) {
+              args =
+                instruction.args.map(
+                  index =>
+                    this.register(
+                      frame,
+                      index
+                    )
+                )
+            } else if (
+              Array.isArray(
+                extra?.args
+              )
+            ) {
+              args =
+                extra.args.map(
+                  value => {
+                    if (
+                      typeof value === "number" &&
+                      value >= 0 &&
+                      value <
+                        frame.registers.length
+                    ) {
+                      return this.register(
+                        frame,
+                        value
+                      )
+                    }
 
-                return value
-              })
+                    return value
+                  }
+                )
             } else {
-              const count = C || 0
+              const count =
+                C || 0
+
               args = []
 
-              for (let i = 0; i < count; i++) {
+              for (
+                let i = 0;
+                i < count;
+                i++
+              ) {
                 args.push(
-                  this.register(frame, B + 1 + i)
+                  this.register(
+                    frame,
+                    B + 1 + i
+                  )
                 )
               }
             }
 
             const fn =
               typeof target === "number"
-                ? this.register(frame, target)
+                ? this.register(
+                    frame,
+                    target
+                  )
                 : target
 
-            const value = this.invoke(
-              this.resolveFunction(fn),
-              args,
-              frame
-            )
+            const value =
+              this.invoke(
+                this.resolveFunction(fn),
+                args,
+                frame
+              )
 
-            if (Array.isArray(value)) {
-              value.forEach((v, i) => {
-                this.setRegister(
-                  frame,
-                  A + i,
-                  v
-                )
-              })
+            if (
+              Array.isArray(value)
+            ) {
+              value.forEach(
+                (v, i) => {
+                  this.setRegister(
+                    frame,
+                    A + i,
+                    v
+                  )
+                }
+              )
             } else {
-              this.setRegister(frame, A, value)
+              this.setRegister(
+                frame,
+                A,
+                value
+              )
             }
 
             break
@@ -804,7 +1088,11 @@ export class ZisuayVM {
 
             result = []
 
-            for (let i = 0; i < count; i++) {
+            for (
+              let i = 0;
+              i < count;
+              i++
+            ) {
               result.push(
                 this.register(
                   frame,
@@ -814,7 +1102,9 @@ export class ZisuayVM {
             }
 
             frame.returned = true
-            frame.returnValues = result
+            frame.returnValues =
+              result
+
             return result
           }
 
@@ -878,9 +1168,14 @@ export class ZisuayVM {
 
           case OPCODE.TESTSET: {
             const value =
-              this.register(frame, B)
+              this.register(
+                frame,
+                B
+              )
 
-            if (truthy(value) === !!C) {
+            if (
+              truthy(value) === !!C
+            ) {
               this.setRegister(
                 frame,
                 A,
@@ -897,7 +1192,10 @@ export class ZisuayVM {
             const proto =
               instruction.proto ??
               extra?.proto ??
-              this.constant(frame, B)
+              this.constant(
+                frame,
+                B
+              )
 
             this.setRegister(
               frame,
@@ -907,21 +1205,33 @@ export class ZisuayVM {
                 frame
               )
             )
+
             break
           }
 
           case OPCODE.FORPREP: {
-            const index = Number(
-              this.register(frame, A)
-            )
+            const index =
+              Number(
+                this.register(
+                  frame,
+                  A
+                )
+              )
 
-            const limit = Number(
-              this.register(frame, A + 1)
-            )
+            const limit =
+              Number(
+                this.register(
+                  frame,
+                  A + 1
+                )
+              )
 
             const step =
               Number(
-                this.register(frame, A + 2)
+                this.register(
+                  frame,
+                  A + 2
+                )
               ) || 1
 
             this.setRegister(
@@ -945,24 +1255,35 @@ export class ZisuayVM {
             frame.ip +=
               instruction.offset ??
               instruction.jump ??
-              s(Number(D || 0))
+              D ??
+              0
+
             break
           }
 
           case OPCODE.FORLOOP: {
             const step =
               Number(
-                this.register(frame, A + 2)
+                this.register(
+                  frame,
+                  A + 2
+                )
               ) || 1
 
             const next =
               Number(
-                this.register(frame, A)
+                this.register(
+                  frame,
+                  A
+                )
               ) + step
 
             const limit =
               Number(
-                this.register(frame, A + 1)
+                this.register(
+                  frame,
+                  A + 1
+                )
               )
 
             this.setRegister(
@@ -988,29 +1309,40 @@ export class ZisuayVM {
                 B ??
                 0
             }
+
             break
           }
 
           case OPCODE.POP:
-            frame.registers[A] = undefined
+            frame.registers[A] =
+              undefined
             break
 
           case OPCODE.DUP:
             this.setRegister(
               frame,
               A + 1,
-              this.register(frame, A)
+              this.register(
+                frame,
+                A
+              )
             )
             break
 
           case OPCODE.SWAP: {
             const tmp =
-              this.register(frame, A)
+              this.register(
+                frame,
+                A
+              )
 
             this.setRegister(
               frame,
               A,
-              this.register(frame, B)
+              this.register(
+                frame,
+                B
+              )
             )
 
             this.setRegister(
@@ -1018,6 +1350,7 @@ export class ZisuayVM {
               B,
               tmp
             )
+
             break
           }
 
@@ -1027,27 +1360,41 @@ export class ZisuayVM {
               B ??
               frame.varargs.length
 
-            for (let i = 0; i < count; i++) {
+            for (
+              let i = 0;
+              i < count;
+              i++
+            ) {
               this.setRegister(
                 frame,
                 A + i,
                 frame.varargs[i]
               )
             }
+
             break
           }
 
           case OPCODE.SELF: {
             const object =
-              this.register(frame, B)
+              this.register(
+                frame,
+                B
+              )
 
             const key =
-              instruction.key !== undefined
-                ? instruction.key
-                : this.register(frame, C)
+              this.resolveTableKey(
+                frame,
+                instruction,
+                extra,
+                C
+              )
 
             const method =
-              getTable(object, key)
+              getTable(
+                object,
+                key
+              )
 
             this.setRegister(
               frame,
@@ -1090,8 +1437,11 @@ export class ZisuayVM {
       return result
     } finally {
       this.callStack.pop()
+
       this.currentFrame =
-        this.callStack[this.callStack.length - 1] || null
+        this.callStack[
+          this.callStack.length - 1
+        ] || null
     }
   }
 
@@ -1100,19 +1450,24 @@ export class ZisuayVM {
     this.traceLog = []
     this.callStack = []
 
-    const frame = new VMFrame(
-      proto,
-      args,
-      null
-    )
+    const frame =
+      new VMFrame(
+        proto,
+        args,
+        null
+      )
 
-    frame.upvalues = Object.create(null)
+    frame.upvalues =
+      Object.create(null)
 
     return this.executeFrame(frame)
   }
 
   execute(bytecode, args = []) {
-    return this.run(bytecode, args)
+    return this.run(
+      bytecode,
+      args
+    )
   }
 
   reset() {
@@ -1135,10 +1490,6 @@ export class ZisuayVM {
   }
 }
 
-function s(value) {
-  return Number.isFinite(value) ? value : 0
-}
-
 export function createVM(options = {}) {
   return new ZisuayVM({
     chunkName: "Zisuay",
@@ -1147,9 +1498,17 @@ export function createVM(options = {}) {
   })
 }
 
-export function runVM(bytecode, options = {}, args = []) {
+export function runVM(
+  bytecode,
+  options = {},
+  args = []
+) {
   const vm = createVM(options)
-  return vm.run(bytecode, args)
+
+  return vm.run(
+    bytecode,
+    args
+  )
 }
 
 export default ZisuayVM
