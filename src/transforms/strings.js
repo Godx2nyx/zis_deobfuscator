@@ -1,7 +1,7 @@
 const DEFAULT_OPTIONS = {
   seed: 0x9e3779b9,
   split: true,
-  layers: 1
+  layers: 3
 }
 
 function mul32(a, b) {
@@ -115,14 +115,23 @@ function bytes(value) {
 }
 
 function xorBytes(data, key) {
-  return data.map((value, index) => {
-    const k = key[index % key.length]
-    return (value ^ k) & 255
-  })
+  return data.map(
+    value => (value ^ key) & 255
+  )
 }
 
-function buildRuntime(bytesValue, keys, chunks) {
-  const byteText = bytesValue.join(",")
+function xorBytesMulti(data, keys) {
+  let result = data.slice()
+
+  for (const key of keys) {
+    result = xorBytes(result, key)
+  }
+
+  return result
+}
+
+function buildRuntime(data, keys, chunks) {
+  const byteText = data.join(",")
   const keyText = keys.join(",")
 
   const parts = chunks
@@ -135,8 +144,11 @@ local _k={${keyText}}
 local _c={${parts}}
 local _r={}
 for _i=1,#_b do
-local _q=_k[((_i-1)%#_k)+1]
-_r[_i]=string.char(bit32.bxor(_b[_i],_q))
+local _v=_b[_i]
+for _n=1,#_k do
+_v=bit32.bxor(_v,_k[_n])
+end
+_r[_i]=string.char(_v)
 end
 local _s={}
 for _n=1,#_c do
@@ -152,27 +164,58 @@ end)()`
 }
 
 function buildLayeredRuntime(value, rng, layers) {
-  let current = value
+  const data = bytes(value)
 
-  for (let i = 0; i < layers; i++) {
-    const salt = rng.int(1, 255)
-
-    const encoded = bytes(current).map(
-      byte => (byte ^ salt) & 255
+  const count = Math.max(
+    1,
+    Math.min(
+      8,
+      Math.floor(layers)
     )
+  )
 
-    current =
-      `(function(_a)
-local _k=${salt}
-local _o={}
-for _i=1,#_a do
-_o[_i]=string.char(bit32.bxor(_a[_i],_k))
-end
-return table.concat(_o)
-end)({${encoded.join(",")}})`
+  const keys = []
+
+  for (let i = 0; i < count; i++) {
+    keys.push(
+      rng.int(1, 255)
+    )
   }
 
-  return current
+  const encoded = xorBytesMulti(
+    data,
+    keys
+  )
+
+  const chunkSize = Math.max(
+    2,
+    Math.min(
+      12,
+      Math.ceil(encoded.length / 4)
+    )
+  )
+
+  const chunks = []
+
+  for (
+    let i = 0;
+    i < encoded.length;
+    i += chunkSize
+  ) {
+    chunks.push({
+      start: i + 1,
+      end: Math.min(
+        i + chunkSize,
+        encoded.length
+      )
+    })
+  }
+
+  return buildRuntime(
+    encoded,
+    keys,
+    chunks
+  )
 }
 
 function encodeString(value, options = {}) {
@@ -189,6 +232,20 @@ function encodeString(value, options = {}) {
     return '""'
   }
 
+  const layers = Number.isFinite(
+    opts.layers
+  )
+    ? Math.floor(opts.layers)
+    : 0
+
+  if (layers > 0) {
+    return buildLayeredRuntime(
+      value,
+      rng,
+      layers
+    )
+  }
+
   const raw = bytes(value)
 
   const keyCount = Math.min(
@@ -202,12 +259,17 @@ function encodeString(value, options = {}) {
   const keys = []
 
   for (let i = 0; i < keyCount; i++) {
-    keys.push(rng.int(1, 255))
+    keys.push(
+      rng.int(1, 255)
+    )
   }
 
-  const encrypted = xorBytes(
-    raw,
-    keys
+  const encrypted = raw.map(
+    (byte, index) =>
+      (
+        byte ^
+        keys[index % keys.length]
+      ) & 255
   )
 
   const chunkSize = Math.max(
@@ -234,24 +296,11 @@ function encodeString(value, options = {}) {
     })
   }
 
-  let result = buildRuntime(
+  return buildRuntime(
     encrypted,
     keys,
     chunks
   )
-
-  if (
-    Number.isFinite(opts.layers) &&
-    opts.layers > 0
-  ) {
-    result = buildLayeredRuntime(
-      result,
-      rng,
-      Math.floor(opts.layers)
-    )
-  }
-
-  return result
 }
 
 function encodeShortString(value, seed) {
@@ -265,10 +314,14 @@ function encodeShortString(value, seed) {
     return '""'
   }
 
-  const key = rng.int(32, 255)
+  const key = rng.int(
+    32,
+    255
+  )
 
-  const encoded = data.map(
-    byte => (byte ^ key) & 255
+  const encoded = xorBytes(
+    data,
+    key
   )
 
   return `(function(_a,_k)
@@ -328,7 +381,10 @@ function processSource(source, options = {}) {
         return match
       }
 
-      const content = match.slice(1, -1)
+      const content = match.slice(
+        1,
+        -1
+      )
 
       if (!content.length) {
         return match
@@ -346,8 +402,9 @@ function processSource(source, options = {}) {
         }
       )
 
-      seed =
-        (seed + 0x45d9f3b) >>> 0
+      seed = (
+        seed + 0x45d9f3b
+      ) >>> 0
 
       return result
     }
@@ -380,8 +437,9 @@ class StringEncryptor {
       }
     )
 
-    this.seed =
-      (this.seed + 0x45d9f3b) >>> 0
+    this.seed = (
+      this.seed + 0x45d9f3b
+    ) >>> 0
 
     this.cache.set(
       value,
