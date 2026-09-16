@@ -2,10 +2,12 @@ import { TokenType } from "../lexer/token.js";
 import * as AST from "../ast/types.js";
 
 class ParserError extends Error {
-    constructor(message, token) {
-        super(
-            `${message} at ${token?.line ?? 0}:${token?.column ?? 0}`
-        );
+    constructor(message, token = null) {
+        const location = token
+            ? ` at ${token.line}:${token.column}`
+            : "";
+
+        super(`${message}${location}`);
 
         this.name = "ParserError";
         this.token = token;
@@ -13,102 +15,100 @@ class ParserError extends Error {
 }
 
 class Parser {
-    constructor(tokens) {
-        this.tokens = tokens || [];
+    constructor(tokens = []) {
+        this.tokens = tokens;
         this.position = 0;
     }
 
-    parse() {
-        const body = this.parseBlock([]);
-
-        this.expect(
-            TokenType.EOF,
-            "Expected end of input"
-        );
-
-        return AST.Program(body);
-    }
-
     current() {
-        return this.tokens[this.position];
-    }
-
-    previous() {
-        return this.tokens[this.position - 1];
+        return (
+            this.tokens[this.position] ||
+            this.tokens[this.tokens.length - 1]
+        );
     }
 
     peek(offset = 1) {
-        return this.tokens[this.position + offset];
+        return (
+            this.tokens[this.position + offset] ||
+            this.tokens[this.tokens.length - 1]
+        );
     }
 
     advance() {
-        if (!this.isAtEnd()) {
+        const token = this.current();
+
+        if (
+            this.position <
+            this.tokens.length - 1
+        ) {
             this.position++;
         }
 
-        return this.previous();
+        return token;
     }
 
     check(type) {
-        return this.current()?.type === type;
+        return this.current().type === type;
     }
 
-    match(...types) {
-        for (const type of types) {
-            if (this.check(type)) {
-                this.advance();
-                return true;
-            }
+    match(type) {
+        if (this.check(type)) {
+            return this.advance();
         }
 
-        return false;
+        return null;
     }
 
-    expect(type, message) {
-        if (!this.check(type)) {
+    expect(type, message = null) {
+        const token = this.current();
+
+        if (token.type !== type) {
             throw new ParserError(
-                message || `Expected ${type}`,
-                this.current()
+                message ||
+                `Expected ${type}, got ${token.type}`,
+                token
             );
         }
 
         return this.advance();
     }
 
-    isAtEnd() {
-        return this.check(TokenType.EOF);
+    parse() {
+        const body = this.parseBlock(
+            new Set([TokenType.EOF])
+        );
+
+        this.expect(
+            TokenType.EOF
+        );
+
+        return new AST.Program(body);
     }
 
-    parseBlock(terminators = []) {
-        const statements = [];
+    parseBlock(stopTokens = new Set()) {
+        const body = [];
 
         while (
-            !this.isAtEnd() &&
-            !terminators.includes(this.current().type)
+            !stopTokens.has(
+                this.current().type
+            ) &&
+            !this.check(TokenType.EOF)
         ) {
-            if (this.match(TokenType.Semicolon)) {
-                continue;
-            }
-
-            statements.push(
+            body.push(
                 this.parseStatement()
             );
-
-            this.match(TokenType.Semicolon);
         }
 
-        return statements;
+        return body;
     }
 
     parseStatement() {
-        const token = this.current();
-
-        switch (token.type) {
+        switch (this.current().type) {
             case TokenType.Local:
                 return this.parseLocal();
 
             case TokenType.Function:
-                return this.parseFunctionDeclaration(false);
+                return this.parseFunctionDeclaration();
 
             case TokenType.If:
                 return this.parseIf();
@@ -127,11 +127,11 @@ class Parser {
 
             case TokenType.Break:
                 this.advance();
-                return AST.BreakStatement();
+                return new AST.BreakStatement();
 
             case TokenType.Continue:
                 this.advance();
-                return AST.ContinueStatement();
+                return new AST.ContinueStatement();
 
             default:
                 return this.parseExpressionOrAssignment();
@@ -139,225 +139,235 @@ class Parser {
     }
 
     parseLocal() {
-        this.expect(TokenType.Local);
+        this.expect(
+            TokenType.Local
+        );
 
-        if (this.check(TokenType.Function)) {
-            this.advance();
+        if (
+            this.match(TokenType.Function)
+        ) {
+            const name =
+                this.parseIdentifier();
 
-            return this.parseFunctionDeclaration(true);
+            const body =
+                this.parseFunctionBody();
+
+            return new AST.FunctionDeclaration(
+                name,
+                body.parameters,
+                body.body,
+                true,
+                false
+            );
         }
 
         const names = [];
 
         names.push(
-            this.expectIdentifier(
-                "Expected local variable name"
-            )
+            this.parseIdentifier()
         );
 
-        while (this.match(TokenType.Comma)) {
+        while (
+            this.match(TokenType.Comma)
+        ) {
             names.push(
-                this.expectIdentifier(
-                    "Expected local variable name"
-                )
+                this.parseIdentifier()
             );
         }
 
-        const expressions = [];
+        const expressions =
+            this.match(TokenType.Assign)
+                ? this.parseExpressionList()
+                : [];
 
-        if (this.match(TokenType.Assign)) {
-            expressions.push(
-                ...this.parseExpressionList()
-            );
-        }
-
-        return AST.LocalDeclaration(
+        return new AST.LocalDeclaration(
             names,
             expressions
         );
     }
 
-    parseFunctionDeclaration(isLocal) {
+    parseFunctionDeclaration() {
         this.expect(
-            TokenType.Function,
-            "Expected function"
+            TokenType.Function
         );
 
-        let name = this.expectIdentifier(
-            "Expected function name"
-        );
-
-        let isMethod = false;
+        const nameParts = [
+            this.parseIdentifier()
+        ];
 
         while (
-            this.match(
-                TokenType.Dot,
-                TokenType.Colon
-            )
+            this.match(TokenType.Dot)
         ) {
-            const separator = this.previous();
-
-            const part = this.expectIdentifier(
-                "Expected function name component"
-            );
-
-            if (
-                separator.type ===
-                TokenType.Colon
-            ) {
-                isMethod = true;
-            }
-
-            name = AST.MemberExpression(
-                name,
-                part
+            nameParts.push(
+                this.parseIdentifier()
             );
         }
 
-        const {
-            parameters,
-            body,
-            isVararg
-        } = this.parseFunctionBody();
+        let isMethod = false;
 
-        return AST.FunctionDeclaration(
+        if (
+            this.match(TokenType.Colon)
+        ) {
+            nameParts.push(
+                this.parseIdentifier()
+            );
+
+            isMethod = true;
+        }
+
+        const body =
+            this.parseFunctionBody();
+
+        let name = nameParts[0];
+
+        if (nameParts.length > 1) {
+            let expression =
+                nameParts[0];
+
+            for (
+                let i = 1;
+                i < nameParts.length;
+                i++
+            ) {
+                expression =
+                    new AST.MemberExpression(
+                        expression,
+                        nameParts[i],
+                        false
+                    );
+            }
+
+            name = expression;
+        }
+
+        return new AST.FunctionDeclaration(
             name,
-            parameters,
-            body,
-            isLocal,
+            body.parameters,
+            body.body,
+            false,
             isMethod
         );
     }
 
     parseFunctionBody() {
         this.expect(
-            TokenType.LeftParen,
-            "Expected '(' after function name"
+            TokenType.LeftParen
         );
 
         const parameters = [];
-        let isVararg = false;
 
-        if (!this.check(TokenType.RightParen)) {
-            if (this.match(TokenType.Vararg)) {
-                isVararg = true;
+        if (
+            !this.check(
+                TokenType.RightParen
+            )
+        ) {
+            if (
+                this.check(
+                    TokenType.Vararg
+                )
+            ) {
+                this.advance();
+
+                parameters.push(
+                    new AST.VarargExpression()
+                );
             } else {
                 parameters.push(
-                    this.expectIdentifier(
-                        "Expected parameter name"
-                    )
+                    this.parseIdentifier()
                 );
 
-                while (this.match(TokenType.Comma)) {
+                while (
+                    this.match(TokenType.Comma)
+                ) {
                     if (
-                        this.match(TokenType.Vararg)
+                        this.check(
+                            TokenType.Vararg
+                        )
                     ) {
-                        isVararg = true;
+                        this.advance();
+
+                        parameters.push(
+                            new AST.VarargExpression()
+                        );
+
                         break;
                     }
 
                     parameters.push(
-                        this.expectIdentifier(
-                            "Expected parameter name"
-                        )
+                        this.parseIdentifier()
                     );
                 }
             }
         }
 
         this.expect(
-            TokenType.RightParen,
-            "Expected ')'"
+            TokenType.RightParen
         );
 
-        const body = this.parseBlock([
-            TokenType.End
-        ]);
+        const body =
+            this.parseBlock(
+                new Set([
+                    TokenType.End
+                ])
+            );
 
         this.expect(
-            TokenType.End,
-            "Expected 'end'"
+            TokenType.End
         );
 
         return {
             parameters,
-            body,
-            isVararg
+            body
         };
     }
 
     parseIf() {
-        this.expect(TokenType.If);
-
-        const test = this.parseExpression();
-
         this.expect(
-            TokenType.Then,
-            "Expected 'then'"
+            TokenType.If
         );
 
-        const consequent = this.parseBlock([
-            TokenType.ElseIf,
-            TokenType.Else,
-            TokenType.End
-        ]);
+        const test =
+            this.parseExpression();
 
-        let alternate = null;
+        this.expect(
+            TokenType.Then
+        );
 
-        if (this.match(TokenType.ElseIf)) {
-            const elseifTest =
-                this.parseExpression();
-
-            this.expect(
-                TokenType.Then,
-                "Expected 'then'"
-            );
-
-            const elseifConsequent =
-                this.parseBlock([
+        const consequent =
+            this.parseBlock(
+                new Set([
                     TokenType.ElseIf,
                     TokenType.Else,
                     TokenType.End
-                ]);
+                ])
+            );
 
-            let elseifAlternate = null;
+        let alternate = null;
 
-            if (this.match(TokenType.ElseIf)) {
-                this.position--;
-
-                elseifAlternate = [
-                    this.parseIf()
-                ];
-            } else if (
-                this.match(TokenType.Else)
-            ) {
-                elseifAlternate =
-                    this.parseBlock([
-                        TokenType.End
-                    ]);
-            }
+        if (
+            this.match(TokenType.ElseIf)
+        ) {
+            this.position--;
 
             alternate = [
-                AST.IfStatement(
-                    elseifTest,
-                    elseifConsequent,
-                    elseifAlternate
-                )
+                this.parseIf()
             ];
         } else if (
             this.match(TokenType.Else)
         ) {
-            alternate = this.parseBlock([
-                TokenType.End
-            ]);
+            alternate =
+                this.parseBlock(
+                    new Set([
+                        TokenType.End
+                    ])
+                );
         }
 
         this.expect(
-            TokenType.End,
-            "Expected 'end'"
+            TokenType.End
         );
 
-        return AST.IfStatement(
+        return new AST.IfStatement(
             test,
             consequent,
             alternate
@@ -365,64 +375,75 @@ class Parser {
     }
 
     parseWhile() {
-        this.expect(TokenType.While);
-
-        const test = this.parseExpression();
-
         this.expect(
-            TokenType.Do,
-            "Expected 'do'"
+            TokenType.While
         );
 
-        const body = this.parseBlock([
+        const test =
+            this.parseExpression();
+
+        this.expect(
+            TokenType.Do
+        );
+
+        const body =
+            this.parseBlock(
+                new Set([
+                    TokenType.End
+                ])
+            );
+
+        this.expect(
             TokenType.End
-        ]);
-
-        this.expect(
-            TokenType.End,
-            "Expected 'end'"
         );
 
-        return AST.WhileStatement(
+        return new AST.WhileStatement(
             test,
             body
         );
     }
 
     parseRepeat() {
-        this.expect(TokenType.Repeat);
-
-        const body = this.parseBlock([
-            TokenType.Until
-        ]);
-
         this.expect(
-            TokenType.Until,
-            "Expected 'until'"
+            TokenType.Repeat
         );
 
-        const test = this.parseExpression();
+        const body =
+            this.parseBlock(
+                new Set([
+                    TokenType.Until
+                ])
+            );
 
-        return AST.RepeatStatement(
+        this.expect(
+            TokenType.Until
+        );
+
+        const test =
+            this.parseExpression();
+
+        return new AST.RepeatStatement(
             body,
             test
         );
     }
 
     parseFor() {
-        this.expect(TokenType.For);
-
-        const first = this.expectIdentifier(
-            "Expected for variable"
+        this.expect(
+            TokenType.For
         );
 
-        if (this.match(TokenType.Assign)) {
+        const first =
+            this.parseIdentifier();
+
+        if (
+            this.match(TokenType.Assign)
+        ) {
             const start =
                 this.parseExpression();
 
             this.expect(
-                TokenType.Comma,
-                "Expected ',' in numeric for"
+                TokenType.Comma
             );
 
             const end =
@@ -430,26 +451,29 @@ class Parser {
 
             let step = null;
 
-            if (this.match(TokenType.Comma)) {
+            if (
+                this.match(TokenType.Comma)
+            ) {
                 step =
                     this.parseExpression();
             }
 
             this.expect(
-                TokenType.Do,
-                "Expected 'do'"
+                TokenType.Do
             );
 
-            const body = this.parseBlock([
-                TokenType.End
-            ]);
+            const body =
+                this.parseBlock(
+                    new Set([
+                        TokenType.End
+                    ])
+                );
 
             this.expect(
-                TokenType.End,
-                "Expected 'end'"
+                TokenType.End
             );
 
-            return AST.ForNumericStatement(
+            return new AST.ForNumericStatement(
                 first,
                 start,
                 end,
@@ -460,37 +484,37 @@ class Parser {
 
         const variables = [first];
 
-        while (this.match(TokenType.Comma)) {
+        while (
+            this.match(TokenType.Comma)
+        ) {
             variables.push(
-                this.expectIdentifier(
-                    "Expected for variable"
-                )
+                this.parseIdentifier()
             );
         }
 
         this.expect(
-            TokenType.In,
-            "Expected 'in'"
+            TokenType.In
         );
 
         const iterators =
             this.parseExpressionList();
 
         this.expect(
-            TokenType.Do,
-            "Expected 'do'"
+            TokenType.Do
         );
 
-        const body = this.parseBlock([
-            TokenType.End
-        ]);
+        const body =
+            this.parseBlock(
+                new Set([
+                    TokenType.End
+                ])
+            );
 
         this.expect(
-            TokenType.End,
-            "Expected 'end'"
+            TokenType.End
         );
 
-        return AST.ForGenericStatement(
+        return new AST.ForGenericStatement(
             variables,
             iterators,
             body
@@ -498,27 +522,35 @@ class Parser {
     }
 
     parseReturn() {
-        this.expect(TokenType.Return);
+        this.expect(
+            TokenType.Return
+        );
 
         if (
             this.check(TokenType.End) ||
             this.check(TokenType.Else) ||
             this.check(TokenType.ElseIf) ||
             this.check(TokenType.Until) ||
-            this.check(TokenType.EOF) ||
-            this.check(TokenType.Semicolon)
+            this.check(TokenType.EOF)
         ) {
-            return AST.ReturnStatement([]);
+            return new AST.ReturnStatement([]);
         }
 
-        return AST.ReturnStatement(
-            this.parseExpressionList()
+        const expressions =
+            this.parseExpressionList();
+
+        this.match(
+            TokenType.Semicolon
+        );
+
+        return new AST.ReturnStatement(
+            expressions
         );
     }
 
     parseExpressionOrAssignment() {
         const first =
-            this.parsePrefixExpression();
+            this.parseExpression();
 
         if (
             this.check(TokenType.Assign) ||
@@ -526,48 +558,30 @@ class Parser {
         ) {
             const variables = [first];
 
-            while (this.match(TokenType.Comma)) {
+            while (
+                this.match(TokenType.Comma)
+            ) {
                 variables.push(
-                    this.parseAssignable()
+                    this.parseExpression()
                 );
             }
 
             this.expect(
-                TokenType.Assign,
-                "Expected '='"
+                TokenType.Assign
             );
 
             const expressions =
                 this.parseExpressionList();
 
-            return AST.AssignmentStatement(
+            return new AST.AssignmentStatement(
                 variables,
                 expressions
             );
         }
 
-        return AST.ExpressionStatement(first);
-    }
-
-    parseAssignable() {
-        const expression =
-            this.parsePrefixExpression();
-
-        if (
-            expression.type !==
-                AST.NodeType.Identifier &&
-            expression.type !==
-                AST.NodeType.MemberExpression &&
-            expression.type !==
-                AST.NodeType.IndexExpression
-        ) {
-            throw new ParserError(
-                "Invalid assignment target",
-                this.previous()
-            );
-        }
-
-        return expression;
+        return new AST.ExpressionStatement(
+            first
+        );
     }
 
     parseExpressionList() {
@@ -575,7 +589,9 @@ class Parser {
             this.parseExpression()
         ];
 
-        while (this.match(TokenType.Comma)) {
+        while (
+            this.match(TokenType.Comma)
+        ) {
             expressions.push(
                 this.parseExpression()
             );
@@ -584,19 +600,13 @@ class Parser {
         return expressions;
     }
 
-    parseExpression() {
-        return this.parseBinaryExpression(0);
-    }
-
-    parseBinaryExpression(minPrecedence) {
+    parseExpression(minPrecedence = 0) {
         let left =
-            this.parseUnaryExpression();
+            this.parseUnary();
 
         while (true) {
             const operator =
-                this.getBinaryOperator(
-                    this.current()
-                );
+                this.getBinaryOperator();
 
             if (!operator) {
                 break;
@@ -611,36 +621,46 @@ class Parser {
 
             this.advance();
 
+            const nextPrecedence =
+                operator.rightAssociative
+                    ? operator.precedence
+                    : operator.precedence + 1;
+
             const right =
-                this.parseBinaryExpression(
-                    operator.rightAssociative
-                        ? operator.precedence
-                        : operator.precedence + 1
+                this.parseExpression(
+                    nextPrecedence
                 );
 
-            left = AST.BinaryExpression(
-                operator.value,
-                left,
-                right
-            );
+            left =
+                new AST.BinaryExpression(
+                    operator.value,
+                    left,
+                    right
+                );
         }
 
         return left;
     }
 
-    parseUnaryExpression() {
-        if (
-            this.match(
-                TokenType.Not,
-                TokenType.Minus
-            )
-        ) {
-            const operator =
-                this.previous().value;
+    parseUnary() {
+        const token =
+            this.current();
 
-            return AST.UnaryExpression(
-                operator,
-                this.parseUnaryExpression()
+        if (
+            token.type === TokenType.Not ||
+            token.type === TokenType.Minus ||
+            token.type === TokenType.Plus
+        ) {
+            this.advance();
+
+            const argument =
+                this.parseUnary();
+
+            return new AST.UnaryExpression(
+                token.type === TokenType.Not
+                    ? "not"
+                    : token.value,
+                argument
             );
         }
 
@@ -649,19 +669,20 @@ class Parser {
 
     parsePrefixExpression() {
         let expression =
-            this.parsePrimaryExpression();
+            this.parsePrimary();
 
         while (true) {
-            if (this.match(TokenType.Dot)) {
+            if (
+                this.match(TokenType.Dot)
+            ) {
                 const property =
-                    this.expectIdentifier(
-                        "Expected property name"
-                    );
+                    this.parseIdentifier();
 
                 expression =
-                    AST.MemberExpression(
+                    new AST.MemberExpression(
                         expression,
-                        property
+                        property,
+                        false
                     );
 
                 continue;
@@ -674,12 +695,11 @@ class Parser {
                     this.parseExpression();
 
                 this.expect(
-                    TokenType.RightBracket,
-                    "Expected ']'"
+                    TokenType.RightBracket
                 );
 
                 expression =
-                    AST.IndexExpression(
+                    new AST.IndexExpression(
                         expression,
                         index
                     );
@@ -687,17 +707,17 @@ class Parser {
                 continue;
             }
 
-            if (this.match(TokenType.Colon)) {
+            if (
+                this.match(TokenType.Colon)
+            ) {
                 const method =
-                    this.expectIdentifier(
-                        "Expected method name"
-                    );
+                    this.parseIdentifier();
 
                 const args =
-                    this.parseArguments();
+                    this.parseCallArguments();
 
                 expression =
-                    AST.MethodCallExpression(
+                    new AST.MethodCallExpression(
                         expression,
                         method,
                         args
@@ -707,17 +727,52 @@ class Parser {
             }
 
             if (
-                this.check(TokenType.LeftParen) ||
-                this.check(TokenType.LeftBrace) ||
-                this.check(TokenType.String)
+                this.check(
+                    TokenType.LeftParen
+                )
             ) {
                 const args =
-                    this.parseArguments();
+                    this.parseCallArguments();
 
                 expression =
-                    AST.CallExpression(
+                    new AST.CallExpression(
                         expression,
                         args
+                    );
+
+                continue;
+            }
+
+            if (
+                this.check(
+                    TokenType.LeftBrace
+                )
+            ) {
+                const args = [
+                    this.parseTableExpression()
+                ];
+
+                expression =
+                    new AST.CallExpression(
+                        expression,
+                        args
+                    );
+
+                continue;
+            }
+
+            if (
+                this.check(
+                    TokenType.String
+                )
+            ) {
+                const string =
+                    this.parsePrimary();
+
+                expression =
+                    new AST.CallExpression(
+                        expression,
+                        [string]
                     );
 
                 continue;
@@ -729,52 +784,85 @@ class Parser {
         return expression;
     }
 
-    parsePrimaryExpression() {
-        const token = this.current();
+    parseCallArguments() {
+        this.expect(
+            TokenType.LeftParen
+        );
+
+        const argumentsList = [];
+
+        if (
+            !this.check(
+                TokenType.RightParen
+            )
+        ) {
+            argumentsList.push(
+                this.parseExpression()
+            );
+
+            while (
+                this.match(TokenType.Comma)
+            ) {
+                argumentsList.push(
+                    this.parseExpression()
+                );
+            }
+        }
+
+        this.expect(
+            TokenType.RightParen
+        );
+
+        return argumentsList;
+    }
+
+    parsePrimary() {
+        const token =
+            this.current();
 
         switch (token.type) {
             case TokenType.Number:
                 this.advance();
 
-                return AST.NumberLiteral(
-                    this.parseNumber(token.value),
+                return new AST.NumberLiteral(
                     token.value
                 );
 
             case TokenType.String:
                 this.advance();
 
-                return AST.StringLiteral(
-                    token.value,
+                return new AST.StringLiteral(
                     token.value
                 );
 
             case TokenType.True:
                 this.advance();
-                return AST.BooleanLiteral(true);
+
+                return new AST.BooleanLiteral(
+                    true
+                );
 
             case TokenType.False:
                 this.advance();
-                return AST.BooleanLiteral(false);
+
+                return new AST.BooleanLiteral(
+                    false
+                );
 
             case TokenType.Nil:
                 this.advance();
-                return AST.NilLiteral();
+
+                return new AST.NilLiteral();
 
             case TokenType.Vararg:
                 this.advance();
-                return AST.VarargExpression();
+
+                return new AST.VarargExpression();
 
             case TokenType.Identifier:
-                this.advance();
-
-                return AST.Identifier(
-                    token.value
-                );
+                return this.parseIdentifier();
 
             case TokenType.Function:
-                this.advance();
-
                 return this.parseFunctionExpression();
 
             case TokenType.LeftParen: {
@@ -784,15 +872,14 @@ class Parser {
                     this.parseExpression();
 
                 this.expect(
-                    TokenType.RightParen,
-                    "Expected ')'"
+                    TokenType.RightParen
                 );
 
                 return expression;
             }
 
             case TokenType.LeftBrace:
-                return this.parseTable();
+                return this.parseTableExpression();
 
             default:
                 throw new ParserError(
@@ -802,114 +889,97 @@ class Parser {
         }
     }
 
-    parseFunctionExpression() {
-        const {
-            parameters,
-            body,
-            isVararg
-        } = this.parseFunctionBody();
-
-        return AST.FunctionExpression(
-            parameters,
-            body,
-            isVararg
-        );
-    }
-
-    parseArguments() {
-        if (this.match(TokenType.LeftParen)) {
-            if (
-                this.match(TokenType.RightParen)
-            ) {
-                return [];
-            }
-
-            const args =
-                this.parseExpressionList();
-
+    parseIdentifier() {
+        const token =
             this.expect(
-                TokenType.RightParen,
-                "Expected ')'"
+                TokenType.Identifier,
+                "Expected identifier"
             );
 
-            return args;
-        }
-
-        if (this.check(TokenType.LeftBrace)) {
-            return [
-                this.parseTable()
-            ];
-        }
-
-        if (this.check(TokenType.String)) {
-            return [
-                this.parsePrimaryExpression()
-            ];
-        }
-
-        throw new ParserError(
-            "Expected function arguments",
-            this.current()
+        return new AST.Identifier(
+            token.value
         );
     }
 
-    parseTable() {
-        this.expect(TokenType.LeftBrace);
+    parseFunctionExpression() {
+        this.expect(
+            TokenType.Function
+        );
+
+        const body =
+            this.parseFunctionBody();
+
+        return new AST.FunctionExpression(
+            body.parameters,
+            body.body
+        );
+    }
+
+    parseTableExpression() {
+        this.expect(
+            TokenType.LeftBrace
+        );
 
         const fields = [];
 
         while (
-            !this.check(TokenType.RightBrace) &&
-            !this.isAtEnd()
+            !this.check(
+                TokenType.RightBrace
+            )
         ) {
-            if (this.match(TokenType.LeftBracket)) {
+            if (
+                this.check(
+                    TokenType.LeftBracket
+                )
+            ) {
+                this.advance();
+
                 const index =
                     this.parseExpression();
 
                 this.expect(
-                    TokenType.RightBracket,
-                    "Expected ']'"
+                    TokenType.RightBracket
                 );
 
                 this.expect(
-                    TokenType.Assign,
-                    "Expected '='"
+                    TokenType.Assign
                 );
 
                 const value =
                     this.parseExpression();
 
                 fields.push(
-                    AST.TableIndexField(
+                    new AST.TableIndexField(
                         index,
                         value
                     )
                 );
             } else if (
-                this.check(TokenType.Identifier) &&
-                this.peek()?.type ===
+                this.check(
+                    TokenType.Identifier
+                ) &&
+                this.peek().type ===
                     TokenType.Assign
             ) {
                 const key =
-                    this.parsePrimaryExpression();
+                    this.parseIdentifier();
 
                 this.expect(
-                    TokenType.Assign,
-                    "Expected '='"
+                    TokenType.Assign
                 );
 
                 const value =
                     this.parseExpression();
 
                 fields.push(
-                    AST.TableKeyField(
+                    new AST.TableKeyField(
                         key,
                         value
                     )
                 );
             } else {
                 fields.push(
-                    AST.TableField(
+                    new AST.TableField(
                         this.parseExpression()
                     )
                 );
@@ -917,96 +987,122 @@ class Parser {
 
             if (
                 !this.match(
-                    TokenType.Comma,
-                    TokenType.Semicolon
+                    TokenType.Comma
                 )
             ) {
-                break;
+                this.match(
+                    TokenType.Semicolon
+                );
+
+                if (
+                    !this.check(
+                        TokenType.RightBrace
+                    )
+                ) {
+                    continue;
+                }
             }
         }
 
         this.expect(
-            TokenType.RightBrace,
-            "Expected '}'"
+            TokenType.RightBrace
         );
 
-        return AST.TableExpression(fields);
+        return new AST.TableExpression(
+            fields
+        );
     }
 
-    getBinaryOperator(token) {
-        if (!token) {
-            return null;
-        }
-
-        const operators = {
+    getBinaryOperator() {
+        const map = {
             [TokenType.Or]: {
                 value: "or",
-                precedence: 1
+                precedence: 1,
+                rightAssociative: false
             },
 
             [TokenType.And]: {
                 value: "and",
-                precedence: 2
+                precedence: 2,
+                rightAssociative: false
             },
 
             [TokenType.Equal]: {
                 value: "==",
-                precedence: 3
+                precedence: 3,
+                rightAssociative: false
             },
 
             [TokenType.NotEqual]: {
                 value: "~=",
-                precedence: 3
+                precedence: 3,
+                rightAssociative: false
             },
 
             [TokenType.Less]: {
                 value: "<",
-                precedence: 3
+                precedence: 3,
+                rightAssociative: false
             },
 
             [TokenType.LessEqual]: {
                 value: "<=",
-                precedence: 3
+                precedence: 3,
+                rightAssociative: false
             },
 
             [TokenType.Greater]: {
                 value: ">",
-                precedence: 3
+                precedence: 3,
+                rightAssociative: false
             },
 
             [TokenType.GreaterEqual]: {
                 value: ">=",
-                precedence: 3
+                precedence: 3,
+                rightAssociative: false
             },
 
             [TokenType.Plus]: {
                 value: "+",
-                precedence: 4
+                precedence: 4,
+                rightAssociative: false
             },
 
             [TokenType.Minus]: {
                 value: "-",
-                precedence: 4
+                precedence: 4,
+                rightAssociative: false
             },
 
             [TokenType.Multiply]: {
                 value: "*",
-                precedence: 5
+                precedence: 5,
+                rightAssociative: false
             },
 
             [TokenType.Divide]: {
                 value: "/",
-                precedence: 5
+                precedence: 5,
+                rightAssociative: false
             },
 
             [TokenType.FloorDivide]: {
                 value: "//",
-                precedence: 5
+                precedence: 5,
+                rightAssociative: false
             },
 
             [TokenType.Modulo]: {
                 value: "%",
-                precedence: 5
+                precedence: 5,
+                rightAssociative: false
+            },
+
+            [TokenType.Concat]: {
+                value: "..",
+                precedence: 6,
+                rightAssociative: true
             },
 
             [TokenType.Power]: {
@@ -1016,64 +1112,13 @@ class Parser {
             }
         };
 
-        return operators[token.type] || null;
+        return map[this.current().type] || null;
     }
-
-    expectIdentifier(message) {
-        if (
-            !this.check(TokenType.Identifier)
-        ) {
-            throw new ParserError(
-                message || "Expected identifier",
-                this.current()
-            );
-        }
-
-        const token = this.advance();
-
-        return AST.Identifier(
-            token.value
-        );
-    }
-
-    parseNumber(raw) {
-        const normalized =
-            String(raw).replace(
-                /_/g,
-                ""
-            );
-
-        if (/^0[xX]/.test(normalized)) {
-            const value =
-                Number(normalized);
-
-            if (Number.isFinite(value)) {
-                return value;
-            }
-        }
-
-        const value =
-            Number(normalized);
-
-        if (!Number.isFinite(value)) {
-            throw new ParserError(
-                `Invalid number ${raw}`,
-                this.previous()
-            );
-        }
-
-        return value;
-    }
-}
-
-function parse(tokens) {
-    return new Parser(tokens).parse();
 }
 
 export {
     Parser,
-    ParserError,
-    parse
+    ParserError
 };
 
 export default Parser;
