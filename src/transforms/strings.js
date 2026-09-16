@@ -1,7 +1,7 @@
 const DEFAULT_OPTIONS = {
   seed: 0x9e3779b9,
   split: true,
-  layers: 3
+  layers: 0
 }
 
 function mul32(a, b) {
